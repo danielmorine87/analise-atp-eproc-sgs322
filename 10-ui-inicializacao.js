@@ -2995,13 +2995,12 @@ function isATPAutomationPage() {
 function atpEnsureReportButton(host, afterLabelEl, tableRef) {
   try {
     if (!host) return;
-    if (host.querySelector('#btnGerarRelatorioColisoes') && host.querySelector('#btnRelatorioUnidadeATP')) {
+    if (host.querySelector('#btnGerarRelatorioColisoes') && host.querySelector('#btnRelatorioUnidadeATP') && host.querySelector('#btnDashboardUsoATP')) {
       try {
         host.querySelector('#btnAuditoriaPriorizacaoATP')?.remove();
         host.querySelector('#btnGrafoConflitosATP')?.remove();
         host.querySelector('#btnMapaRelacoesATP')?.remove();
         host.querySelector('#btnExtratoFluxosATP')?.remove();
-        host.querySelector('#btnDashboardUsoATP')?.remove();
       } catch (_) {}
       return;
     }
@@ -3012,7 +3011,6 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
       host.querySelector('#btnGrafoConflitosATP')?.remove();
       host.querySelector('#btnMapaRelacoesATP')?.remove();
       host.querySelector('#btnExtratoFluxosATP')?.remove();
-      host.querySelector('#btnDashboardUsoATP')?.remove();
     } catch (_) {}
 
     const topEntries = (mapObj, limit) => Array.from((mapObj || new Map()).entries()).sort((a, b) => b[1] - a[1]).slice(0, limit);
@@ -6093,16 +6091,17 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
       const anchor = afterLabelEl.nextSibling;
       host.insertBefore(btnUnitReport, anchor);
       host.insertBefore(btn, btnUnitReport);
+      host.insertBefore(btnDashboard, btn);
     } else {
       host.appendChild(btn);
       host.appendChild(btnUnitReport);
+      host.appendChild(btnDashboard);
     }
     try {
       host.querySelector('#btnAuditoriaPriorizacaoATP')?.remove();
       host.querySelector('#btnGrafoConflitosATP')?.remove();
       host.querySelector('#btnMapaRelacoesATP')?.remove();
       host.querySelector('#btnExtratoFluxosATP')?.remove();
-      host.querySelector('#btnDashboardUsoATP')?.remove();
     } catch (_) {}
   } catch (e) { }
 }
