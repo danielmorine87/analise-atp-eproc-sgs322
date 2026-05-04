@@ -81,7 +81,7 @@ Os módulos ativos da versão publicada são:
 
 1. Instale o Tampermonkey no navegador.
 2. Abra o script principal:
-   [analise-atp-eproc.user.js](https://raw.githubusercontent.com/oadrianocardoso/analise-atp-eproc/main/analise-atp-eproc.user.js)
+   [analise-atp-eproc.user.js](https://raw.githubusercontent.com/danielmorine87/analise-atp-eproc-sgs322/main/analise-atp-eproc.user.js)
 3. Clique em `Install` no Tampermonkey.
 4. Acesse o eProc na tela de automatização de localizadores e aguarde o carregamento dos botões.
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Análise de ATP eProc
 // @namespace    https://github.com/danielmorine87/analise-atp-eproc-sgs322
-// @description  Script de análise ATP no eProc com auditoria por localizador, matriz Entrada/Saída, mapa de relações e diagnóstico operacional.
+// @description  Script para análise de regras ATP no eProc, com relatório de colisões e relatório da unidade.
 // @author       ADRIANO AUGUSTO CARDOSO E SANTOS
 // @version      11.3
 // @downloadURL  https://raw.githubusercontent.com/danielmorine87/analise-atp-eproc-sgs322/main/analise-atp-eproc.user.js
@@ -26,25 +26,16 @@
 /*
 RESUMO ATUAL (ATP)
 
-1) ESCOPO OPERACIONAL
-- Extrai e analisa regras ATP por texto literal de localizador/regra.
-- Consolida matriz Entrada/Saída por localizador (INCLUIR, REMOVER, concomitantes, manuais/erro).
-- Gera auditoria por localizador como fonte única de verdade (unidade e recortes de debug).
-- Classifica cenários de colisão, sobreposição, contenção e priorização entre regras.
-- Monta Mapa de Relações com agrupamentos operacionais (A/B/C) e Cirandas (D) em critério estrito.
+Projeto adaptado do trabalho original de Adriano Cardoso.
+Esta linha mantém o núcleo de análise de colisões e expande a leitura da unidade.
 
-2) PRINCIPAIS SAÍDAS
-- Relatório textual com fechamento matemático e seções de depuração.
-- Matriz de localizadores com recortes por classe de fluxo (gabinete, cumprimento, passagem etc.).
-- Mapa de Relações ATP:
-  A = grupos por esqueleto/entrada, B = agrupamento flexível por gatilho, C = pseudogatilhos incorporados,
-  D = cirandas estritas por encadeamento A->B->C (mesmo gatilho, sem apoios no grupo D).
-- Diagnóstico visual na UI para entender por que uma regra/grupo foi classificado em cada bloco.
+ESCOPO DESTA VERSÃO
+- Análise automática da tabela de regras ATP.
+- Identificação e classificação de conflitos entre regras.
+- Coluna "Conflitos" com apoio visual e ação "Comparar".
+- Geração do Relatório de Colisões (TXT).
+- Geração do Relatório da Unidade (TXT), com maturidade, recomendações e estrutura de automação.
 
-3) MÓDULOS-CHAVE
-- 01-config.js: configuração e toggles
-- 02-utilitarios.js: parsing, helpers e funções de apoio
-- 05-extrator-de-dados.js: coleta da tabela de regras
-- 06-analisador-de-colisoes.js: análise de conflitos/sobreposições
-- 10-ui-inicializacao.js: composição da análise operacional e renderização principal
+OBSERVAÇÃO
+- Recursos antigos de fluxo/BPMN/extrato não fazem parte desta versão.
 */
