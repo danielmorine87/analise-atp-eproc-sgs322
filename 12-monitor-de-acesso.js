@@ -50,13 +50,29 @@ try { console.log('[ATP][LOAD] 12-monitor-de-acesso.js carregado com sucesso'); 
     }
   }
 
+  function getScriptVersion() {
+    try {
+      const gmVersion = String((typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version) || '').trim();
+      if (gmVersion) return gmVersion;
+    } catch (_) { }
+    try {
+      const winVersion = String(window.ATP_VERSION || '').trim();
+      if (winVersion) return winVersion;
+    } catch (_) { }
+    try {
+      const cfgVersion = String((typeof ATP_VERSION !== 'undefined' ? ATP_VERSION : '') || '').trim();
+      if (cfgVersion) return cfgVersion;
+    } catch (_) { }
+    return 'N/D';
+  }
+
   function saveExecution(acao) {
     const payload = [{
       executed_at: new Date().toISOString(),
       sel_orgao: getSelectedOrgao(),
       usuario: getUsuarioHeader(),
       acao: String(acao || ''),
-      versao_script: String(window.ATP_VERSION || '')
+      versao_script: getScriptVersion()
     }];
 
     fetch(endpoint, {
