@@ -3319,20 +3319,25 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
       })();
 
       const totalLoc = Math.max(0, incluirDistinct + removerDistinct - concomitantes);
+      const acoesUnicasTotais = Number(modelosAcao.actionDistinct || 0);
+      const maturidadeMagnitude = (
+        Math.log10(Math.max(0, removerDistinct) + 1)
+        + Math.log10(Math.max(0, incluirDistinct) + 1)
+        + Math.log10(Math.max(0, acoesUnicasTotais) + 1)
+        + Math.log10(Math.max(0, andamentoCount) + 1)
+      );
       const stageScore = (() => {
-        if ((Number(metrics.totalRules) || 0) < 10 || incluirDistinct < 10) return 0;
-        let score = 0;
-        if ((incluirDistinct + removerDistinct) >= 200) score += 1;
-        const razaoRemInc = removerDistinct / Math.max(1, incluirDistinct);
-        if (razaoRemInc >= 0.6 && razaoRemInc <= 1.7) score += 1;
-        if (andamentoCount >= 100) score += 1;
-        if (concomitantes >= 50) score += 1;
-        return Math.max(0, Math.min(4, score));
+        const m = Number(maturidadeMagnitude || 0);
+        if (m >= 9) return 4;
+        if (m >= 7) return 3;
+        if (m >= 5) return 2;
+        if (m >= 3.5) return 1;
+        return 0;
       })();
-      const stageName = ['Inicial', 'Em Estruturação', 'Intermediário', 'Maturidade Estrutural', 'Referência Operacional'][stageScore] || 'Inicial';
+      const stageName = ['Inicial', 'Em Estruturação', 'Intermediário', 'Maturidade', 'Referência Operacional'][stageScore] || 'Inicial';
       const maturidadeTexto = (() => {
-        if (stageScore >= 4) return 'A unidade apresenta maturidade estrutural elevada, com repertório consistente de localizadores e desenho operacional estável para o volume de regras em produção.';
-        if (stageScore === 3) return 'A unidade apresenta maturidade estrutural na seleção de localizadores, com predominância de regras focadas em localizadores da própria unidade.';
+        if (stageScore >= 4) return 'A unidade atingiu referência operacional, com automação consolidada, repertório consistente de localizadores e desenho estável para o volume de regras em produção.';
+        if (stageScore === 3) return 'A unidade apresenta maturidade, com boa estrutura na seleção de localizadores e predominância de regras focadas em localizadores da própria unidade.';
         if (stageScore === 2) return 'A unidade apresenta maturidade intermediária, com base funcional ativa e espaço para reduzir pontos manuais e ampliar cobertura de localizadores da unidade.';
         if (stageScore === 1) return 'A unidade está em fase de estruturação, com avanço parcial de cobertura e necessidade de consolidar padrão de entrada e saída dos localizadores.';
         return 'A unidade ainda está em estágio inicial de maturidade, com base de regras reduzida para consolidar leitura estrutural estável.';
