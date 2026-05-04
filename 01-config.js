@@ -427,4 +427,16 @@ try {
   window.isDeactivateResultPage = window.isDeactivateResultPage || isDesativarResultPage;
 } catch (_) { }
 
+// Monitor de uso (preencher URL/chave para habilitar coleta).
+try {
+  window.ATP_ACCESS_MONITOR_CONFIG = Object.assign({
+    enabled: true,
+    // Preencha com os dados do seu projeto Supabase.
+    supabaseUrl: 'https://ezkxycrnjwforacfqgzi.supabase.co',
+    supabaseApiKey: 'sb_publishable_1eiaDpAcTCwRdQDmxW8oTA_oXgN3xpk',
+    tableName: 'atp_execucoes',
+    waitMaxMs: 30000
+  }, window.ATP_ACCESS_MONITOR_CONFIG || {});
+} catch (_) { }
+
 try { console.log('[ATP][OK] config.js inicializado'); } catch (e) { }

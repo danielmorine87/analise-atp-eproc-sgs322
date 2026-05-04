@@ -21,6 +21,7 @@
 // @require      https://raw.githubusercontent.com/danielmorine87/analise-atp-eproc-sgs322/main/05-extrator-de-dados.js
 // @require      https://raw.githubusercontent.com/danielmorine87/analise-atp-eproc-sgs322/main/06-analisador-de-colisoes.js
 // @require      https://raw.githubusercontent.com/danielmorine87/analise-atp-eproc-sgs322/main/10-ui-inicializacao.js
+// @require      https://raw.githubusercontent.com/danielmorine87/analise-atp-eproc-sgs322/main/12-monitor-de-acesso.js
 // ==/UserScript==
 
 /*

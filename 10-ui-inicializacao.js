@@ -108,9 +108,9 @@ function atpFriendlyActionName(acao) {
   const map = {
     carregamento: 'Carregamento',
     clique_filtrar_regras_conflitantes: 'Filtrar Regras Conflitantes',
-    clique_gerar_relatorio_colisoes: 'Gerar Relatorio de Conflitos',
-    clique_gerar_extrato_fluxos: 'Gerar Extrato de Fluxos',
-    clique_visualizar_fluxo: 'Visualizar Fluxos',
+    clique_filtrar_possiveis_conflitos: 'Filtrar Possiveis Conflitos',
+    clique_gerar_relatorio_colisoes: 'Gerar Relatorio de Colisoes',
+    clique_gerar_relatorio_unidade: 'Gerar Relatorio da Unidade',
     clique_dashboard_utilizacao: 'Abrir Dashboard de Utilizacao',
     clique_comparar: 'Comparar Regras'
   };
@@ -247,17 +247,31 @@ function atpRenderDashboard(target, rows) {
   const todayKey = atpFormatDateKeyLocal(now);
   const byAction = Object.create(null);
   const byDay = Object.create(null);
+  const byUser = Object.create(null);
+  const byOrgao = Object.create(null);
 
   for (const row of allRows) {
     const acao = String(row && row.acao ? row.acao : '').trim() || '(sem acao)';
     byAction[acao] = (byAction[acao] || 0) + 1;
     const dayKey = atpFormatDateKeyLocal(row && row.executed_at ? row.executed_at : '');
     if (dayKey) byDay[dayKey] = (byDay[dayKey] || 0) + 1;
+    const usuario = String(row && row.usuario ? row.usuario : '').trim() || '(sem usuario)';
+    const orgao = String(row && row.sel_orgao ? row.sel_orgao : '').trim() || '(sem orgao)';
+    byUser[usuario] = (byUser[usuario] || 0) + 1;
+    byOrgao[orgao] = (byOrgao[orgao] || 0) + 1;
   }
 
   const actionItems = Object.keys(byAction)
     .sort((a, b) => byAction[b] - byAction[a])
     .map((key) => ({ label: atpFriendlyActionName(key), value: byAction[key] }));
+  const userItems = Object.keys(byUser)
+    .sort((a, b) => byUser[b] - byUser[a])
+    .slice(0, 15)
+    .map((key) => ({ label: key, value: byUser[key] }));
+  const orgaoItems = Object.keys(byOrgao)
+    .sort((a, b) => byOrgao[b] - byOrgao[a])
+    .slice(0, 15)
+    .map((key) => ({ label: key, value: byOrgao[key] }));
 
   const last7Days = [];
   for (let i = 6; i >= 0; i -= 1) {
@@ -270,6 +284,7 @@ function atpRenderDashboard(target, rows) {
   const total = allRows.length;
   const today = byDay[todayKey] || 0;
   const uniqueActions = Object.keys(byAction).length;
+  const uniqueUsers = Object.keys(byUser).length;
   const version = (typeof ATP_VERSION !== 'undefined') ? String(ATP_VERSION) : 'N/D';
   const cfg = atpGetDashboardConfig();
 
@@ -278,6 +293,7 @@ function atpRenderDashboard(target, rows) {
     `<div class="atp-dash-kpi"><div class="atp-dash-kpi-num">${total}</div><div class="atp-dash-kpi-lbl">Eventos Consultados</div></div>`,
     `<div class="atp-dash-kpi"><div class="atp-dash-kpi-num">${today}</div><div class="atp-dash-kpi-lbl">Eventos Hoje</div></div>`,
     `<div class="atp-dash-kpi"><div class="atp-dash-kpi-num">${uniqueActions}</div><div class="atp-dash-kpi-lbl">Tipos de Ação</div></div>`,
+    `<div class="atp-dash-kpi"><div class="atp-dash-kpi-num">${uniqueUsers}</div><div class="atp-dash-kpi-lbl">Usuarios Distintos</div></div>`,
     '</div>',
     '<div class="atp-dash-sec-title">Versao</div>',
     `<div class="atp-dash-foot">Script: ${atpEscapeHtml(version)} | Tabela: ${atpEscapeHtml(cfg.tableName || 'N/D')}</div>`,
@@ -285,6 +301,10 @@ function atpRenderDashboard(target, rows) {
     `<div class="atp-dash-bars">${atpBuildBarRowsHtml(actionItems, 'Sem acoes registradas')}</div>`,
     '<div class="atp-dash-sec-title">Utilização nos Ultimos 7 Dias</div>',
     atpBuildLast7DaysChartHtml(last7Days),
+    '<div class="atp-dash-sec-title">Utilização por Usuario (top 15)</div>',
+    `<div class="atp-dash-bars">${atpBuildBarRowsHtml(userItems, 'Sem usuarios registrados')}</div>`,
+    '<div class="atp-dash-sec-title">Utilização por Orgao (top 15)</div>',
+    `<div class="atp-dash-bars">${atpBuildBarRowsHtml(orgaoItems, 'Sem orgaos registrados')}</div>`,
     `<div class="atp-dash-foot">Atualizado em ${atpEscapeHtml(new Date().toLocaleString())}</div>`
   ].join('');
 }
@@ -295,7 +315,7 @@ function atpFetchUsageRows(limit) {
     return Promise.reject(new Error('Monitor de acesso nao configurado.'));
   }
   const base = cfg.supabaseUrl.replace(/\/+$/, '');
-  const url = `${base}/rest/v1/${cfg.tableName}?select=executed_at,acao&order=executed_at.desc&limit=${Math.max(1, limit || 1000)}`;
+  const url = `${base}/rest/v1/${cfg.tableName}?select=executed_at,acao,usuario,sel_orgao&order=executed_at.desc&limit=${Math.max(1, limit || 1000)}`;
   return fetch(url, {
     method: 'GET',
     headers: {
