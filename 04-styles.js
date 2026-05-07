@@ -14,13 +14,13 @@ function injectStyle() {
       .atp-conf-tipo.loop{background:#fee2e2;}
       .atp-conf-tipo.contradiction{background:#c7d2fe;}
       .atp-conf-tipo.breakflow{background:#bbf7d0;}
-      .atp-conf-tipo.clone{background:#fef3c7;} /* atenção */
+      .atp-conf-tipo.clone{background:#fecaca;} /* crítico */
       .atp-conf-tipo.prioridade-indefinida{background:#fde68a;} /* atenção */
       .atp-conf-tipo.prioridade-invertida{background:#fecaca;} /* crítico */
-      .atp-conf-tipo.prioridade-correta{background:#dcfce7;} /* informativo */
+      .atp-conf-tipo.prioridade-correta{background:#dbeafe;} /* informativo */
       .atp-conf-tipo.contradicao{background:#fecaca;} /* crítico */
       .atp-conf-tipo.quebra-fluxo{background:#fecaca;} /* crítico */
-      .atp-conf-tipo.acao-sem-avanco{background:#dcfce7;} /* informativo */
+      .atp-conf-tipo.acao-sem-avanco{background:#fde68a;} /* atenção */
       .atp-conf-tipo.looping-potencial{background:#fecaca;} /* crítico */
       .atp-compare-btn{margin-top:5px !important;}
       .atp-compare-btn:hover{background:#e5e7eb;}
@@ -358,34 +358,31 @@ function mapColumns(table) {
 }
 
 const ATP_TIPOS_TOOLTIPS = {
-  'REGRA CLONE': 'REGRA CLONE = Quando há duplicidade de lógica entre regras (total ou parcial), com forte indício de redundância.',
-  'PRIORIDADE INDEFINIDA': 'PRIORIDADE INDEFINIDA = Quando há compatibilidade/interseção entre regras e a ordem de execução exige decisão explícita.',
+  'REGRA EM DUPLICIDADE': 'REGRA EM DUPLICIDADE = Quando há duplicidade de lógica entre regras (total ou parcial), com forte indício de redundância.',
+  'AVALIAR PRIORIDADE': 'AVALIAR PRIORIDADE = Quando há compatibilidade/interseção entre regras e a ordem de execução exige decisão explícita.',
   'PRIORIDADE INVERTIDA': 'PRIORIDADE INVERTIDA = Quando a ordem atual favorece a regra mais ampla (ou remove objeto necessário), invertendo a priorização esperada.',
-  'PRIORIDADE CORRETA': 'PRIORIDADE CORRETA = Quando a regra mais restrita executa antes da mais abrangente, formando a peneira esperada.',
-  'CONTRADIÇÃO': 'CONTRADIÇÃO = Quando a própria regra contém critérios mutuamente exclusivos no mesmo ramo (AND), tornando-a logicamente impossível.',
-  'QUEBRA DE FLUXO': 'QUEBRA DE FLUXO = Quando a regra mantém INCLUIR == REMOVER sem avanço operacional, com risco de reexecução indevida.',
-  'AÇÃO SEM AVANÇO': 'AÇÃO SEM AVANÇO = Quando existe ação programada, mas o processo permanece no mesmo localizador por desenho da regra.',
-  'LOOPING POTENCIAL': 'LOOPING POTENCIAL = Quando duas regras se retroalimentam (uma remove o que a outra inclui, e vice-versa), gerando repetição.'
+  'FILTROS CONFLITANTES': 'FILTROS CONFLITANTES = Quando a própria regra contém critérios mutuamente exclusivos no mesmo ramo (AND), tornando-a logicamente impossível. Teste as possibilidades.',
+  'REGRA SEM FINALIDADE': 'REGRA SEM FINALIDADE = Quando a regra mantém INCLUIR == REMOVER sem avanço operacional, com risco de reexecução indevida.',
+  'AVALIAR TROCA DE LOCALIZADORES': 'AVALIAR TROCA DE LOCALIZADORES = Quando existe ação programada, mas o processo permanece no mesmo localizador por desenho da regra.',
+  'POTENCIAL LOOPING': 'POTENCIAL LOOPING = Quando duas regras se retroalimentam (uma remove o que a outra inclui, e vice-versa), gerando repetição. Teste as possibilidades.'
 };
 
 const ATP_MINI_HELP_TIP = [
-  'REGRA CLONE = Quando há duplicidade de lógica entre regras (total ou parcial), com forte indício de redundância.',
+  'REGRA EM DUPLICIDADE = Quando há duplicidade de lógica entre regras (total ou parcial), com forte indício de redundância.',
   '',
-  'PRIORIDADE INDEFINIDA = Quando há compatibilidade/interseção entre regras e a ordem de execução exige decisão explícita.',
+  'AVALIAR PRIORIDADE = Quando há compatibilidade/interseção entre regras e a ordem de execução exige decisão explícita.',
   '',
   'PRIORIDADE INVERTIDA = Quando a regra mais ampla executa antes da mais restrita, ou quando a ordem remove objeto necessário para a regra seguinte.',
   '',
-  'PRIORIDADE CORRETA = Quando a regra mais restrita executa antes da mais abrangente, formando a peneira esperada.',
+  'FILTROS CONFLITANTES = Quando a própria regra contém critérios mutuamente exclusivos no mesmo ramo (conector "E"/AND), tornando-a logicamente impossível. Teste as possibilidades.',
   '',
-  'CONTRADIÇÃO = Quando a própria regra contém critérios mutuamente exclusivos no mesmo ramo (conector "E"/AND), tornando-a logicamente impossível.',
+  'REGRA SEM FINALIDADE = Quando não há avanço operacional (INCLUIR == REMOVER sem ação útil ao fluxo).',
   '',
-  'QUEBRA DE FLUXO = Quando não há avanço operacional (INCLUIR == REMOVER sem ação útil ao fluxo).',
+  'AVALIAR TROCA DE LOCALIZADORES = Quando há ação programada, mas o processo permanece no mesmo localizador por desenho da regra.',
   '',
-  'AÇÃO SEM AVANÇO = Quando há ação programada, mas o processo permanece no mesmo localizador por desenho da regra.',
+  'POTENCIAL LOOPING = Quando regras se retroalimentam (ciclo), gerando efeito repetido de incluir/remover (detecção depende da configuração de análise de looping). Teste as possibilidades.',
   '',
-  'LOOPING POTENCIAL = Quando regras se retroalimentam (ciclo), gerando efeito repetido de incluir/remover (detecção depende da configuração de análise de looping).',
-  '',
-  'PRIORIDADE: menor número executa antes. Regra sem prioridade definida executa por último (após todas as prioridades definidas).'
+  'PRIORIDADE: regras sem prioridade serão executadas após as que tiverem prioridade definida. Quando regras conflitantes tiverem prioridades semelhantes, a mais antiga será executada primeiro.'
 ].join('\n');
 
 function getTipoTooltip(tipo) {

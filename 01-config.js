@@ -8,13 +8,13 @@ let onlyConflicts = false;
 const ATP_VERSION = '10.66';
 
 const tipoRank = {
-  'Regra Clone': 5,
+  'Regra em Duplicidade': 5,
   'Looping': 5,
-  'Looping Potencial': 5,
-  'Contradição': 5,
-  'Quebra de Fluxo': 4,
+  'Potencial Looping': 5,
+  'Filtros Conflitantes': 5,
+  'Regra sem Finalidade': 4,
   'Prioridade Invertida': 3,
-  'Prioridade Indefinida': 2,
+  'Avaliar Prioridade': 2,
   'Prioridade Correta': 1
 };
 
@@ -386,7 +386,7 @@ const ATP_CONFIG = {
     }
   },
   notaExecucao: {
-    pesosConflito: { 'Regra Clone': 3, 'Prioridade Invertida': 1, 'Contradição': 3 },
+    pesosConflito: { 'Regra em Duplicidade': 3, 'Prioridade Invertida': 1, 'Filtros Conflitantes': 3 },
     pseudoAcertos: 1,
     pseudoErros: 1
   },

@@ -1356,10 +1356,13 @@ function atpAgruparConflitosPorRegraPivo(table, cols) {
   const idxNum = Number(atpNucleoIndiceColunaNumeroNucleo(table, cols || {}));
 
   const cfg = {
-    'Prioridade Indefinida': { ordem: 10, rotulo: 'Atenção (Indefinida)', icone: '⚠️' },
-    'Prioridade Invertida': { ordem: 20, rotulo: 'Crítico (Invertida)', icone: '⛔' },
-    'Regra Clone': { ordem: 30, rotulo: 'Atenção (Clone)', icone: '🧩' },
-    'Prioridade Correta': { ordem: 40, rotulo: 'Informativo (Correta)', icone: 'ℹ️' }
+    'Avaliar Prioridade': { ordem: 10, rotulo: 'Atenção (Avaliar Prioridade)', icone: '⚠️' },
+    'Regra em Duplicidade': { ordem: 20, rotulo: 'Crítico (Regra em Duplicidade)', icone: '⛔' },
+    'Avaliar Troca de Localizadores': { ordem: 30, rotulo: 'Atenção (Troca de Localizadores)', icone: '🔁' },
+    'Prioridade Invertida': { ordem: 40, rotulo: 'Crítico (Prioridade Invertida)', icone: '⛔' },
+    'Filtros Conflitantes': { ordem: 50, rotulo: 'Crítico (Filtros Conflitantes)', icone: '⛔' },
+    'Regra sem Finalidade': { ordem: 60, rotulo: 'Crítico (Regra sem Finalidade)', icone: '⛔' },
+    'Potencial Looping': { ordem: 70, rotulo: 'Crítico (Potencial Looping)', icone: '⛔' }
   };
 
   const ordemTipo = (tipo) => (cfg[tipo]?.ordem || 999);
@@ -1759,6 +1762,7 @@ function atpNucleoGarantirColunaPrioridade(tabela, regras, colunas) {
     thPrioridade.insertBefore(rotuloPrioridade, thPrioridade.firstChild || null);
   }
   rotuloPrioridade.textContent = 'Prioridade';
+  thPrioridade.title = 'PRIORIDADE: regras sem prioridade serão executadas após as que tiverem prioridade definida. Quando regras conflitantes possuírem prioridades semelhantes, a mais antiga será executada primeiro.';
   try { thPrioridade.querySelector('#areaOrdenacaoPrioridadeNucleo')?.remove(); } catch (_) {}
 
   Array.from(thPrioridade.childNodes).forEach((no) => {
@@ -1806,6 +1810,7 @@ function atpNucleoGarantirColunaPrioridade(tabela, regras, colunas) {
       }
       tdPrioridade.dataset.atpPrioridadeNula = prioridadeNula ? '1' : '0';
       tdPrioridade.dataset.atpPrioridadeTexto = prioridadeBruta || '';
+      tdPrioridade.title = thPrioridade.title;
       if (prioridadeNula) delete tdPrioridade.dataset.atpPrioridadeNum;
       else tdPrioridade.dataset.atpPrioridadeNum = String(prioridadeNum);
 
@@ -3410,17 +3415,14 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
         return 'Cumprimento';
       };
 
-      const critSet = new Set(['Prioridade Invertida', 'Contradição', 'Quebra de Fluxo', 'Looping Potencial']);
-      const atencaoSet = new Set(['Regra Clone', 'Prioridade Indefinida']);
-      const infoSet = new Set(['Prioridade Correta', 'Ação sem Avanço']);
+      const critSet = new Set(['Regra em Duplicidade', 'Prioridade Invertida', 'Filtros Conflitantes', 'Regra sem Finalidade', 'Potencial Looping']);
+      const atencaoSet = new Set(['Avaliar Prioridade', 'Avaliar Troca de Localizadores']);
       let conflitosCriticos = 0;
       let conflitosAtencao = 0;
-      let conflitosInformativos = 0;
       for (const [tipo, total] of countsByTipo.entries()) {
         const n = Number(total) || 0;
         if (critSet.has(tipo)) conflitosCriticos += n;
         else if (atencaoSet.has(tipo)) conflitosAtencao += n;
-        else if (infoSet.has(tipo)) conflitosInformativos += n;
       }
 
       const totalRepertorioUnidade = Math.max(1, Number(unitClosure.base || 0));
@@ -3428,17 +3430,17 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
       const pctApenasRemoverTxt = ((100 * nApenasRemoverUnidade) / totalRepertorioUnidade).toFixed(1).replace('.', ',') + '%';
       const nApenasIncluirUnidade = Number(unitClosure.incluirSemRemover || incOnlyUnidadeRows.length || 0);
       const pctApenasIncluirTxt = ((100 * nApenasIncluirUnidade) / totalRepertorioUnidade).toFixed(1).replace('.', ',') + '%';
-      const nAtencaoPrioridade = Number(countsByTipo.get('Prioridade Indefinida') || 0);
-      const nAtencaoRegraClone = Number(countsByTipo.get('Regra Clone') || 0);
+      const nAtencaoPrioridade = Number(countsByTipo.get('Avaliar Prioridade') || 0);
+      const nAtencaoTrocaLocalizador = Number(countsByTipo.get('Avaliar Troca de Localizadores') || 0);
       const nAtencaoTotal = Number(conflitosAtencao || 0);
       const detalhesAtencao = (() => {
         const parts = [];
-        if (nAtencaoPrioridade > 0) parts.push('Prioridade Indefinida: ' + String(nAtencaoPrioridade));
-        if (nAtencaoRegraClone > 0) parts.push('Regra Clone: ' + String(nAtencaoRegraClone));
+        if (nAtencaoPrioridade > 0) parts.push('Avaliar Prioridade: ' + String(nAtencaoPrioridade));
+        if (nAtencaoTrocaLocalizador > 0) parts.push('Avaliar Troca de Localizadores: ' + String(nAtencaoTrocaLocalizador));
         if (parts.length > 1) return ' (' + parts.join(', ') + ')';
         if (parts.length === 1) {
-          if (nAtencaoPrioridade > 0) return ' (Prioridade Indefinida)';
-          if (nAtencaoRegraClone > 0) return ' (Regra Clone)';
+          if (nAtencaoPrioridade > 0) return ' (Avaliar Prioridade)';
+          if (nAtencaoTrocaLocalizador > 0) return ' (Avaliar Troca de Localizadores)';
         }
         return '';
       })();
@@ -3577,7 +3579,6 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
       lines.push('Resumo de Conflitos:');
       lines.push('- Críticos: ' + String(conflitosCriticos));
       lines.push('- Atenção: ' + String(conflitosAtencao));
-      lines.push('- Informativos: ' + String(conflitosInformativos));
       lines.push('Para detalhamento por regra e motivo, consulte o Relatório de Colisões.');
       lines.push('');
 
@@ -3627,24 +3628,24 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
         if (!rules.length) return;
         var conflictsByRule = (typeof analyze === 'function') ? (analyze(rules) || new Map()) : new Map();
 
-        var tiposCriticos = new Set(['Prioridade Invertida', 'Contradição', 'Quebra de Fluxo', 'Looping Potencial']);
-        var tiposAtencao = new Set(['Regra Clone', 'Prioridade Indefinida']);
-        var tiposInformativos = new Set(['Prioridade Correta', 'Ação sem Avanço']);
-        var categoriaLabel = { critico: 'Crítico', atencao: 'Atenção', informativo: 'Informativo' };
-        var impactoPorCategoria = { critico: 'Alto', atencao: 'Médio', informativo: 'Baixo' };
+        var tiposCriticos = new Set(['Regra em Duplicidade', 'Prioridade Invertida', 'Filtros Conflitantes', 'Regra sem Finalidade', 'Potencial Looping']);
+        var tiposAtencao = new Set(['Avaliar Prioridade', 'Avaliar Troca de Localizadores']);
+        var tiposInformativos = new Set(['Prioridade Correta']);
+        var categoriaLabel = { critico: 'Crítico', atencao: 'Atenção' };
+        var impactoPorCategoria = { critico: 'Alto', atencao: 'Médio' };
 
         var categoriaDoTipo = function (tipo) {
           var t = String(tipo || '');
           if (tiposCriticos.has(t)) return 'critico';
           if (tiposAtencao.has(t)) return 'atencao';
-          if (tiposInformativos.has(t)) return 'informativo';
-          return 'informativo';
+          if (tiposInformativos.has(t)) return '';
+          return '';
         };
         var categoriaDoPar = function (rec) {
           var tipos = Array.from(rec && rec.tipos || []);
           if (tipos.some(function (t) { return tiposCriticos.has(t); })) return 'critico';
           if (tipos.some(function (t) { return tiposAtencao.has(t); })) return 'atencao';
-          return 'informativo';
+          return '';
         };
         var sanitizarTextoMotivoRelatorio = function (txt) {
           var out = String(txt || '');
@@ -3671,13 +3672,15 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
             var nB = Number(outraRegra);
             if (!Number.isFinite(nA) || !Number.isFinite(nB) || nB < 0 || nA >= nB) continue;
             var tipos = Array.from(rec && rec.tipos || []).map(String);
+            tipos = tipos.filter(function (t) { return !tiposInformativos.has(t); });
+            if (!tipos.length) continue;
             tipos.forEach(function (t) { resumoTipos.set(t, (resumoTipos.get(t) || 0) + 1); });
             pares.push({
               a: String(numRegra),
               b: String(outraRegra),
               categoria: categoriaDoPar(rec),
               tipos: tipos,
-              impacto: impactoPorCategoria[categoriaDoPar(rec)] || 'Baixo',
+              impacto: impactoPorCategoria[categoriaDoPar(rec)] || 'Médio',
               motivos: Array.from(rec && rec.motivos || [])
                 .map(function (m) { return sanitizarTextoMotivoRelatorio(String(m || '').trim()); })
                 .filter(Boolean)
@@ -3685,7 +3688,7 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
           }
         }
 
-        var ordemCategoria = { critico: 0, atencao: 1, informativo: 2 };
+        var ordemCategoria = { critico: 0, atencao: 1 };
         pares.sort(function (x, y) {
           var cx = ordemCategoria[x.categoria] || 9;
           var cy = ordemCategoria[y.categoria] || 9;
@@ -3705,7 +3708,6 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
         lines.push('Resumo por severidade:');
         lines.push('- Crítico: ' + String(pares.filter(function (p) { return p.categoria === 'critico'; }).length));
         lines.push('- Atenção: ' + String(pares.filter(function (p) { return p.categoria === 'atencao'; }).length));
-        lines.push('- Informativo: ' + String(pares.filter(function (p) { return p.categoria === 'informativo'; }).length));
         lines.push('- Total de pares: ' + String(pares.length));
         lines.push('');
         lines.push('Resumo por tipo:');
@@ -3719,8 +3721,10 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
         } else {
           pares.forEach(function (p) {
             lines.push('');
-            lines.push('Regra (' + p.a + ') x Regra (' + p.b + ')');
-            lines.push('- Categoria: ' + (categoriaLabel[p.categoria] || 'Informativo'));
+            lines.push('Regra 1: ' + p.a);
+            lines.push('-----');
+            lines.push('Regra 2: ' + p.b);
+            lines.push('- Categoria: ' + (categoriaLabel[p.categoria] || 'Atenção'));
             lines.push('- Tipos: ' + (p.tipos && p.tipos.length ? p.tipos.join(' | ') : '(sem tipo)'));
             lines.push('- Impacto: ' + p.impacto);
             if (p.motivos && p.motivos.length) lines.push('- Motivos: ' + p.motivos.join(' || '));
@@ -6228,7 +6232,7 @@ function addOnlyConflictsCheckbox(table, onToggle) {
     txtCategorias.textContent = 'Categorias:';
     linhaCategorias.appendChild(txtCategorias);
 
-    const categoriaState = window.__ATP_UI_CATEGORIAS__ || { critico: true, atencao: true, informativo: true };
+    const categoriaState = window.__ATP_UI_CATEGORIAS__ || { critico: true, atencao: true };
     window.__ATP_UI_CATEGORIAS__ = categoriaState;
     const makeChip = (id, labelText, key) => {
       const chip = document.createElement('button');
@@ -6252,7 +6256,6 @@ function addOnlyConflictsCheckbox(table, onToggle) {
     };
     makeChip('btnChipCategoriaCriticoNucleoLike', 'Crítico', 'critico');
     makeChip('btnChipCategoriaAtencaoNucleoLike', 'Atenção', 'atencao');
-    makeChip('btnChipCategoriaInformativoNucleoLike', 'Informativo', 'informativo');
 
     panel.appendChild(linhaAcoes);
     panel.appendChild(linhaCategorias);

@@ -968,13 +968,13 @@ try { console.log('[ATP][LOAD] 06-analisador-de-colisoes.js carregado com sucess
             if (prioEq(A, B)) {
               const kd = pickKeepDropTotal(A, B);
               const sug = `Sugestão: Excluir a regra ${kd.drop.num}, mantendo a ${kd.keep.num}.`;
-              upsert(A.num, B.num, 'Regra Clone', 'Alto', 'Prioridade, Localizador REMOVER, Tipo de Controle / Critério, Localizador INCLUIR / Ação e Outros Critérios idênticos. ' + sug);
-              upsert(B.num, A.num, 'Regra Clone', 'Alto', 'Prioridade, Localizador REMOVER, Tipo de Controle / Critério, Localizador INCLUIR / Ação e Outros Critérios idênticos. ' + sug);
+              upsert(A.num, B.num, 'Regra em Duplicidade', 'Alto', 'Prioridade, Localizador REMOVER, Tipo de Controle / Critério, Localizador INCLUIR / Ação e Outros Critérios idênticos. ' + sug);
+              upsert(B.num, A.num, 'Regra em Duplicidade', 'Alto', 'Prioridade, Localizador REMOVER, Tipo de Controle / Critério, Localizador INCLUIR / Ação e Outros Critérios idênticos. ' + sug);
             } else {
               const kd = pickKeepDropParcial(A, B);
               const sug = `Sugestão: Excluir a regra ${kd.drop.num}, mantendo a ${kd.keep.num} (executa antes).`;
-              upsert(A.num, B.num, 'Regra Clone', 'Médio', 'Localizador REMOVER, Tipo de Controle / Critério, Localizador INCLUIR / Ação e Outros Critérios idênticos; prioridades diferentes. ' + sug);
-              upsert(B.num, A.num, 'Regra Clone', 'Médio', 'Localizador REMOVER, Tipo de Controle / Critério, Localizador INCLUIR / Ação e Outros Critérios idênticos; prioridades diferentes. ' + sug);
+              upsert(A.num, B.num, 'Regra em Duplicidade', 'Médio', 'Localizador REMOVER, Tipo de Controle / Critério, Localizador INCLUIR / Ação e Outros Critérios idênticos; prioridades diferentes. ' + sug);
+              upsert(B.num, A.num, 'Regra em Duplicidade', 'Médio', 'Localizador REMOVER, Tipo de Controle / Critério, Localizador INCLUIR / Ação e Outros Critérios idênticos; prioridades diferentes. ' + sug);
             }
           }
         }
@@ -1007,10 +1007,10 @@ try { console.log('[ATP][LOAD] 06-analisador-de-colisoes.js carregado com sucess
                 `${motivoSimultaneo} ` +
                 `Há conflito real entre as regras ${rest.num} e ${ampla.num}; sem prioridade, não há definição de qual executa primeiro. ` +
                 `Sugestão: Definir prioridade explícita entre as regras (ou ajustar "Outros Critérios" para não sobrepor).`;
-              upsert(rest.num, ampla.num, 'Prioridade Indefinida', 'Baixo', motivoSemPrio);
-              upsert(ampla.num, rest.num, 'Prioridade Indefinida', 'Baixo', motivoSemPrio);
+              upsert(rest.num, ampla.num, 'Avaliar Prioridade', 'Baixo', motivoSemPrio);
+              upsert(ampla.num, rest.num, 'Avaliar Prioridade', 'Baixo', motivoSemPrio);
             } else {
-              upsert(rest.num, ampla.num, 'Prioridade Indefinida', 'Baixo',
+              upsert(rest.num, ampla.num, 'Avaliar Prioridade', 'Baixo',
                 `Mesmo Localizador REMOVER e Tipo de Controle / Critério com interseção; prioridades equivalentes. ` +
                 `${motivoSimultaneo} ` +
                 `A regra ${ampla.num} é mais ampla em "Outros Critérios" e pode capturar processos da mais restrita. ` + `Sugestão: Definir a prioridade da regra ${rest.num} para executar antes da ${ampla.num} (ou ajustar "Outros Critérios" para não sobrepor).`);
@@ -1019,8 +1019,8 @@ try { console.log('[ATP][LOAD] 06-analisador-de-colisoes.js carregado com sucess
           // Mesma prioridade e "Outros" diferentes, porém compatíveis por contexto → possível sobreposição
           if (oa === ob && relAB === 'diferentes' && overlapAB.overlap && temDimensaoComumOutros) {
             const motivo = `Mesmo Localizador REMOVER e Tipo de Controle / Critério com interseção; prioridades equivalentes; ${buildSimultaneousOverlapReason(A, B, overlapAB)}`;
-            upsert(A.num, B.num, 'Prioridade Indefinida', 'Baixo', motivo);
-            upsert(B.num, A.num, 'Prioridade Indefinida', 'Baixo', motivo);
+            upsert(A.num, B.num, 'Avaliar Prioridade', 'Baixo', motivo);
+            upsert(B.num, A.num, 'Avaliar Prioridade', 'Baixo', motivo);
           }
 
           if (oa !== ob && overlapAB.overlap) {
@@ -1098,19 +1098,19 @@ try { console.log('[ATP][LOAD] 06-analisador-de-colisoes.js carregado com sucess
                   upsert(later.num, earlier.num, 'Prioridade Invertida', 'Médio', motivo);
                   upsert(earlier.num, later.num, 'Prioridade Invertida', 'Médio', motivo);
                 } else {
-                  const motivo = `Mesmo Localizador REMOVER e mesmo Tipo de Controle / Critério; prioridades diferentes. Prioridade Indefinida: contenção parcial/ambígua (sem contenção total). ${motivoCurto}`;
-                  upsert(later.num, earlier.num, 'Prioridade Indefinida', 'Baixo', motivo);
-                  upsert(earlier.num, later.num, 'Prioridade Indefinida', 'Baixo', motivo);
+                  const motivo = `Mesmo Localizador REMOVER e mesmo Tipo de Controle / Critério; prioridades diferentes. Avaliar Prioridade: contenção parcial/ambígua (sem contenção total). ${motivoCurto}`;
+                  upsert(later.num, earlier.num, 'Avaliar Prioridade', 'Baixo', motivo);
+                  upsert(earlier.num, later.num, 'Avaliar Prioridade', 'Baixo', motivo);
                 }
               } else {
                 if (!temDimensaoComumOutros) {
                   continue;
                 }
                 const motivo = hasIntersecaoComDecisaoHumana
-                  ? `Mesmo Localizador REMOVER e mesmo Tipo de Controle / Critério; prioridades diferentes. Prioridade Indefinida: ${motivoCurto}`
-                  : `Mesmo Localizador REMOVER e mesmo Tipo de Controle / Critério; prioridades diferentes. Prioridade Indefinida aplicada entre regras equivalentes em "Outros Critérios". ${motivoCurto}`;
-                upsert(later.num, earlier.num, 'Prioridade Indefinida', 'Baixo', motivo);
-                upsert(earlier.num, later.num, 'Prioridade Indefinida', 'Baixo', motivoCurto);
+                  ? `Mesmo Localizador REMOVER e mesmo Tipo de Controle / Critério; prioridades diferentes. Avaliar Prioridade: ${motivoCurto}`
+                  : `Mesmo Localizador REMOVER e mesmo Tipo de Controle / Critério; prioridades diferentes. Avaliar Prioridade aplicada entre regras equivalentes em "Outros Critérios". ${motivoCurto}`;
+                upsert(later.num, earlier.num, 'Avaliar Prioridade', 'Baixo', motivo);
+                upsert(earlier.num, later.num, 'Avaliar Prioridade', 'Baixo', motivoCurto);
               }
             }
           }
@@ -1122,7 +1122,7 @@ try { console.log('[ATP][LOAD] 06-analisador-de-colisoes.js carregado com sucess
         const Binc = getIncSet(B);
 
         // Regra de negócio (ajuste 2026-04): sem REMOVER exato não classifica
-        // como Prioridade Indefinida/Prioridade Invertida/Prioridade Correta.
+        // como Avaliar Prioridade/Prioridade Invertida/Prioridade Correta.
 
 if (typeof ATP_CONFIG === 'undefined' || ATP_CONFIG?.analisarPerdaObjetoCondicional !== false) {
         try {
@@ -1197,8 +1197,8 @@ if (typeof ATP_CONFIG === 'undefined' || ATP_CONFIG?.analisarPerdaObjetoCondicio
     if (ATP_CONFIG.analisarLooping) {
 
       if (hasIntersection(Arem, Binc) && hasIntersection(Brem, Ainc)) {
-        upsert(A.num, B.num, 'Looping Potencial', 'Alto', 'A remove algo que B inclui e B remove algo que A inclui.');
-        upsert(B.num, A.num, 'Looping Potencial', 'Alto', 'A remove algo que B inclui e B remove algo que A inclui.');
+        upsert(A.num, B.num, 'Potencial Looping', 'Alto', 'A remove algo que B inclui e B remove algo que A inclui. Testar possibilidades.');
+        upsert(B.num, A.num, 'Potencial Looping', 'Alto', 'A remove algo que B inclui e B remove algo que A inclui. Testar possibilidades.');
       }
     }
       }
@@ -1209,7 +1209,7 @@ if (typeof ATP_CONFIG === 'undefined' || ATP_CONFIG?.analisarPerdaObjetoCondicio
         const motivos = detectContradictions(r);
         if (motivos && motivos.length) {
           const sugest = 'Sugestão: Em “Outros Critérios”, remova seleções mutuamente exclusivas do mesmo campo (ex.: COM e SEM; APENAS UMA e MAIS DE UMA; estados diferentes do mesmo Dado Complementar). Se a intenção for abranger alternativas, separe em regras distintas ou use conector OU quando disponível.';
-          upsert(r.num, -1, 'Contradição', 'Alto', motivos.join(' | ') + '\n' + sugest);
+          upsert(r.num, -1, 'Filtros Conflitantes', 'Alto', motivos.join(' | ') + '\n' + sugest + ' Testar possibilidades.');
         }
       } catch (e) {}
     }
@@ -1264,7 +1264,7 @@ if (typeof ATP_CONFIG === 'undefined' || ATP_CONFIG?.analisarPerdaObjetoCondicio
             if (acoes.length && !ehTempo) {
               const obs = 'A regra executa ação programada e permanece no mesmo localizador (INCLUIR == REMOVER).';
               const sug = 'Sugestão: para gatilho de evento/petição/documento, manter assim pode ser intencional (apoio operacional) se não houver reexecução indevida.';
-              upsert(r.num, -1, 'Ação sem Avanço', 'Baixo',
+              upsert(r.num, -1, 'Avaliar Troca de Localizadores', 'Baixo',
                 `${obs} Ações: ${resumoAcoes}. ${sug}`);
             } else {
               const sug = ehTempo
@@ -1273,7 +1273,7 @@ if (typeof ATP_CONFIG === 'undefined' || ATP_CONFIG?.analisarPerdaObjetoCondicio
               const detalhe = ehTempo
                 ? 'Com gatilho temporal, manter INCLUIR == REMOVER tende a reexecutar no ciclo seguinte (diário/periódico).'
                 : 'Sem ação programada relevante, manter INCLUIR == REMOVER tende a permanência sem avanço.';
-              upsert(r.num, -1, 'Quebra de Fluxo', 'Alto',
+              upsert(r.num, -1, 'Regra sem Finalidade', 'Alto',
                 `${detalhe}\n${sug}`);
             }
           }
@@ -1297,14 +1297,14 @@ if (typeof ATP_CONFIG === 'undefined' || ATP_CONFIG?.analisarPerdaObjetoCondicio
 
 function tipoClass(t) {
   return ({
-    'Regra Clone': 'clone',
-    'Prioridade Indefinida': 'prioridade-indefinida',
+    'Regra em Duplicidade': 'clone',
+    'Avaliar Prioridade': 'prioridade-indefinida',
     'Prioridade Invertida': 'prioridade-invertida',
     'Prioridade Correta': 'prioridade-correta',
-    'Contradição': 'contradicao',
-    'Quebra de Fluxo': 'quebra-fluxo',
-    'Ação sem Avanço': 'acao-sem-avanco',
-    'Looping Potencial': 'loop',
+    'Filtros Conflitantes': 'contradicao',
+    'Regra sem Finalidade': 'quebra-fluxo',
+    'Avaliar Troca de Localizadores': 'acao-sem-avanco',
+    'Potencial Looping': 'loop',
     'Looping': 'loop'
   }[t] || '');
 }
@@ -1357,16 +1357,14 @@ function applyFilter(table) {
       if (filtroCategorias && typeof filtroCategorias === 'object') {
         const filtrarCritico = !!filtroCategorias.critico;
         const filtrarAtencao = !!filtroCategorias.atencao;
-        const filtrarInformativo = !!filtroCategorias.informativo;
-        const temFiltroCategoria = filtrarCritico || filtrarAtencao || filtrarInformativo;
+        const temFiltroCategoria = filtrarCritico || filtrarAtencao;
         if (!temFiltroCategoria) {
           tr.style.display = '';
           return;
         }
         const mostrarCritico = filtrarCritico && tr.dataset.atpHasConflict === '1';
         const mostrarAtencao = filtrarAtencao && tr.dataset.atpHasPossible === '1';
-        const mostrarInformativo = filtrarInformativo && tr.dataset.atpHasInformativo === '1';
-        tr.style.display = (mostrarCritico || mostrarAtencao || mostrarInformativo) ? '' : 'none';
+        tr.style.display = (mostrarCritico || mostrarAtencao) ? '' : 'none';
         return;
       }
       if (!apenasCriticos && !apenasAtencao) { tr.style.display = ''; return; }
@@ -1416,15 +1414,15 @@ function render(table, rules, conflictsByRule) {
       let maxSev = 0;
 
       if (adj && adj.size) {
-        const conjuntoCritico = new Set(['Prioridade Invertida', 'Contradição', 'Quebra de Fluxo', 'Looping Potencial']);
-        const conjuntoAtencao = new Set(['Regra Clone', 'Prioridade Indefinida']);
-        const conjuntoInformativo = new Set(['Prioridade Correta', 'Ação sem Avanço']);
+        const conjuntoCritico = new Set(['Regra em Duplicidade', 'Prioridade Invertida', 'Filtros Conflitantes', 'Regra sem Finalidade', 'Potencial Looping']);
+        const conjuntoAtencao = new Set(['Avaliar Prioridade', 'Avaliar Troca de Localizadores']);
+        const conjuntoInformativo = new Set(['Prioridade Correta']);
         const prioridadeLinha = (num) => {
           const rec = adj.get(num);
           const tipos = Array.from(rec?.tipos || []);
           if (tipos.some(t => conjuntoCritico.has(t))) return 300;
-          if (tipos.includes('Prioridade Indefinida')) return 220;
-          if (tipos.includes('Regra Clone')) return 210;
+          if (tipos.includes('Regra em Duplicidade')) return 280;
+          if (tipos.includes('Avaliar Prioridade')) return 220;
           if (tipos.some(t => conjuntoAtencao.has(t))) return 200;
           if (tipos.some(t => conjuntoInformativo.has(t))) return 100;
           return 90;
@@ -1451,22 +1449,20 @@ function render(table, rules, conflictsByRule) {
 
         let temLinhaCritica = false;
         let temLinhaAtencao = false;
-        let temLinhaInformativa = false;
         const maxVisiblePossibleRows = 8;
         let possibleVisible = 0;
         let possibleHidden = 0;
 for (const n of others) {
           const rec = adj.get(n);
-          const tiposAll = Array.from(rec.tipos || []);
+          const tiposAll = Array.from(rec.tipos || []).filter((t) => !conjuntoInformativo.has(t));
+          if (!tiposAll.length) continue;
           const regraTemCritico = tiposAll.some(t => conjuntoCritico.has(t));
           const regraTemAtencao = tiposAll.some(t => conjuntoAtencao.has(t));
-          const regraTemInformativo = tiposAll.some(t => conjuntoInformativo.has(t));
           if (regraTemCritico) temLinhaCritica = true;
           else if (regraTemAtencao) temLinhaAtencao = true;
-          if (regraTemInformativo) temLinhaInformativa = true;
           const prioridadeVisualTipo = (t) => {
-            if (t === 'Prioridade Indefinida') return 2;
-            if (t === 'Regra Clone') return 1;
+            if (t === 'Regra em Duplicidade') return 3;
+            if (t === 'Avaliar Prioridade') return 2;
             return 0;
           };
           const tipos = tiposAll.sort((a, b) => {
@@ -1488,7 +1484,7 @@ for (const n of others) {
           const apenasAtencao = tiposAll.length > 0
             && !tiposAll.some(t => conjuntoCritico.has(t))
             && tiposAll.some(t => conjuntoAtencao.has(t))
-            && tiposAll.every(t => conjuntoAtencao.has(t) || conjuntoInformativo.has(t));
+            && tiposAll.every(t => conjuntoAtencao.has(t));
           const detalhesTooltip = tipos.map((tipo) => {
             const set = rec.motivosByTipo?.get?.(tipo);
             const motivo = (set && set.size) ? Array.from(set).join(' | ') : '';
@@ -1513,11 +1509,9 @@ for (const n of others) {
 
         if (temLinhaCritica) tr.dataset.atpHasConflict = '1'; else delete tr.dataset.atpHasConflict;
         if (temLinhaAtencao) tr.dataset.atpHasPossible = '1'; else delete tr.dataset.atpHasPossible;
-        if (temLinhaInformativa) tr.dataset.atpHasInformativo = '1'; else delete tr.dataset.atpHasInformativo;
       } else {
         delete tr.dataset.atpHasConflict;
         delete tr.dataset.atpHasPossible;
-        delete tr.dataset.atpHasInformativo;
         delete confTd.dataset.atpConfNums;
       }
 
