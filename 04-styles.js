@@ -361,10 +361,10 @@ const ATP_TIPOS_TOOLTIPS = {
   'REGRA EM DUPLICIDADE': 'REGRA EM DUPLICIDADE = Quando há duplicidade de lógica entre regras (total ou parcial), com forte indício de redundância.',
   'AVALIAR PRIORIDADE': 'AVALIAR PRIORIDADE = Quando há compatibilidade/interseção entre regras e a ordem de execução exige decisão explícita.',
   'PRIORIDADE INVERTIDA': 'PRIORIDADE INVERTIDA = Quando a ordem atual favorece a regra mais ampla (ou remove objeto necessário), invertendo a priorização esperada.',
-  'FILTROS CONFLITANTES': 'FILTROS CONFLITANTES = Quando a própria regra contém critérios mutuamente exclusivos no mesmo ramo (AND), tornando-a logicamente impossível. Teste as possibilidades.',
+  'FILTROS CONFLITANTES': 'FILTROS CONFLITANTES = Quando a própria regra contém critérios mutuamente exclusivos no mesmo ramo (AND), tornando-a logicamente impossível.',
   'REGRA SEM FINALIDADE': 'REGRA SEM FINALIDADE = Quando a regra mantém INCLUIR == REMOVER sem avanço operacional, com risco de reexecução indevida.',
   'AVALIAR TROCA DE LOCALIZADORES': 'AVALIAR TROCA DE LOCALIZADORES = Quando existe ação programada, mas o processo permanece no mesmo localizador por desenho da regra.',
-  'POTENCIAL LOOPING': 'POTENCIAL LOOPING = Quando duas regras se retroalimentam (uma remove o que a outra inclui, e vice-versa), gerando repetição. Teste as possibilidades.'
+  'POTENCIAL LOOPING': 'POTENCIAL LOOPING = Quando duas regras se retroalimentam (uma remove o que a outra inclui, e vice-versa), gerando repetição.'
 };
 
 const ATP_MINI_HELP_TIP = [
@@ -374,15 +374,15 @@ const ATP_MINI_HELP_TIP = [
   '',
   'PRIORIDADE INVERTIDA = Quando a regra mais ampla executa antes da mais restrita, ou quando a ordem remove objeto necessário para a regra seguinte.',
   '',
-  'FILTROS CONFLITANTES = Quando a própria regra contém critérios mutuamente exclusivos no mesmo ramo (conector "E"/AND), tornando-a logicamente impossível. Teste as possibilidades.',
+  'FILTROS CONFLITANTES = Quando a própria regra contém critérios mutuamente exclusivos no mesmo ramo (conector "E"/AND), tornando-a logicamente impossível.',
   '',
   'REGRA SEM FINALIDADE = Quando não há avanço operacional (INCLUIR == REMOVER sem ação útil ao fluxo).',
   '',
   'AVALIAR TROCA DE LOCALIZADORES = Quando há ação programada, mas o processo permanece no mesmo localizador por desenho da regra.',
   '',
-  'POTENCIAL LOOPING = Quando regras se retroalimentam (ciclo), gerando efeito repetido de incluir/remover (detecção depende da configuração de análise de looping). Teste as possibilidades.',
+  'POTENCIAL LOOPING = Quando regras se retroalimentam (ciclo), gerando efeito repetido de incluir/remover (detecção depende da configuração de análise de looping).',
   '',
-  'PRIORIDADE: regras sem prioridade serão executadas após as que tiverem prioridade definida. Quando regras conflitantes tiverem prioridades semelhantes, a mais antiga será executada primeiro.'
+  'PRIORIDADE: regras sem prioridade serão executadas após as que tiverem prioridade definida. Quando regras conflitantes tiverem prioridades iguais, a mais antiga será executada primeiro.'
 ].join('\n');
 
 function getTipoTooltip(tipo) {

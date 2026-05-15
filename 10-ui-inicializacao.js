@@ -1762,7 +1762,7 @@ function atpNucleoGarantirColunaPrioridade(tabela, regras, colunas) {
     thPrioridade.insertBefore(rotuloPrioridade, thPrioridade.firstChild || null);
   }
   rotuloPrioridade.textContent = 'Prioridade';
-  thPrioridade.title = 'PRIORIDADE: regras sem prioridade serão executadas após as que tiverem prioridade definida. Quando regras conflitantes possuírem prioridades semelhantes, a mais antiga será executada primeiro.';
+  thPrioridade.title = 'PRIORIDADE: regras sem prioridade serão executadas após as que tiverem prioridade definida. Quando regras conflitantes tiverem prioridades iguais, a mais antiga será executada primeiro.';
   try { thPrioridade.querySelector('#areaOrdenacaoPrioridadeNucleo')?.remove(); } catch (_) {}
 
   Array.from(thPrioridade.childNodes).forEach((no) => {
@@ -3000,7 +3000,7 @@ function isATPAutomationPage() {
 function atpEnsureReportButton(host, afterLabelEl, tableRef) {
   try {
     if (!host) return;
-    if (host.querySelector('#btnGerarRelatorioColisoes') && host.querySelector('#btnRelatorioUnidadeATP') && host.querySelector('#btnDashboardUsoATP')) {
+    if (host.querySelector('#btnGerarRelatorioColisoes') && host.querySelector('#btnRelatorioUnidadeATP') && host.querySelector('#btnDashboardUsoATP') && host.querySelector('#chkExpandirColunasATP')) {
       try {
         host.querySelector('#btnAuditoriaPriorizacaoATP')?.remove();
         host.querySelector('#btnGrafoConflitosATP')?.remove();
@@ -3012,6 +3012,9 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
     try {
       host.querySelector('#btnGerarRelatorioColisoes')?.remove();
       host.querySelector('#btnRelatorioUnidadeATP')?.remove();
+      host.querySelector('#btnExpandirColunasATP')?.remove();
+      host.querySelector('#lblExpandirColunasATP')?.remove();
+      host.querySelector('#chkExpandirColunasATP')?.remove();
       host.querySelector('#btnAuditoriaPriorizacaoATP')?.remove();
       host.querySelector('#btnGrafoConflitosATP')?.remove();
       host.querySelector('#btnMapaRelacoesATP')?.remove();
@@ -3820,6 +3823,32 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
     btnDashboard.title = 'Dashboard de Utilização do Script';
     btnDashboard.textContent = '📊';
     btnDashboard.addEventListener('click', atpOpenDashboardModal);
+
+    const lblExpandCols = document.createElement('label');
+    lblExpandCols.id = 'lblExpandirColunasATP';
+    lblExpandCols.style.display = 'inline-flex';
+    lblExpandCols.style.alignItems = 'center';
+    lblExpandCols.style.gap = '4px';
+    lblExpandCols.style.marginLeft = '8px';
+    lblExpandCols.style.cursor = 'pointer';
+    lblExpandCols.style.userSelect = 'none';
+    lblExpandCols.style.fontSize = '12px';
+    const chkExpandCols = document.createElement('input');
+    chkExpandCols.type = 'checkbox';
+    chkExpandCols.id = 'chkExpandirColunasATP';
+    chkExpandCols.checked = atpLoadExpandColsState();
+    chkExpandCols.addEventListener('change', function () {
+      try {
+        const tb = tableRef || findTable();
+        const val = !!chkExpandCols.checked;
+        atpSaveExpandColsState(val);
+        if (tb) atpApplyExpandColsState(tb, val);
+      } catch (_) {}
+    });
+    const txtExpandCols = document.createElement('span');
+    txtExpandCols.textContent = 'Expandir colunas';
+    lblExpandCols.appendChild(chkExpandCols);
+    lblExpandCols.appendChild(txtExpandCols);
 
     const btnAudit = document.createElement('button');
     btnAudit.type = 'button';
@@ -6100,8 +6129,10 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
       const anchor = afterLabelEl.nextSibling;
       host.insertBefore(btnUnitReport, anchor);
       host.insertBefore(btn, btnUnitReport);
-      host.insertBefore(btnDashboard, btn);
+      host.insertBefore(lblExpandCols, btn);
+      host.insertBefore(btnDashboard, anchor);
     } else {
+      host.appendChild(lblExpandCols);
       host.appendChild(btn);
       host.appendChild(btnUnitReport);
       host.appendChild(btnDashboard);
@@ -6199,23 +6230,41 @@ function addOnlyConflictsCheckbox(table, onToggle) {
       return input;
     };
 
-    const applyExibirTipos = (enabled) => {
+    const applyExibirNaColuna = (enabled) => {
       try {
         const tb = table || findTable();
         if (!tb) return;
-        tb.querySelectorAll('td[data-atp-col="conflita"] .atp-conf-tipo').forEach((el) => {
-          try { el.style.display = enabled ? '' : 'none'; } catch (_) {}
+        tb.querySelectorAll('td[data-atp-col="conflita"]').forEach((td) => {
+          const kids = Array.from(td.children || []);
+          kids.forEach((el) => {
+            if (el && el.classList && el.classList.contains('atp-compare-btn')) return;
+            try { el.style.display = enabled ? '' : 'none'; } catch (_) {}
+          });
         });
       } catch (_) {}
     };
 
-    const chkFiltrar = makeCheck('chkMostrarLinhasNucleoLike', 'Filtrar', () => {
-      const val = !!chkFiltrar.checked;
-      try { onlyConflicts = val; } catch (_) { window.onlyConflicts = val; }
+    const categoriaState = window.__ATP_UI_CATEGORIAS__ || { critico: true, atencao: true };
+    window.__ATP_UI_CATEGORIAS__ = categoriaState;
+    const applyFiltroCategorias = () => {
+      try {
+        if (!chkFiltrar.checked) {
+          try { delete window.atpFiltroCategorias; } catch (_) { window.atpFiltroCategorias = null; }
+        } else {
+          window.atpFiltroCategorias = {
+            critico: !!window.__ATP_UI_CATEGORIAS__.critico,
+            atencao: !!window.__ATP_UI_CATEGORIAS__.atencao
+          };
+        }
+      } catch (_) {}
       try { onToggle && onToggle(); } catch (_) {}
+    };
+
+    const chkFiltrar = makeCheck('chkMostrarLinhasNucleoLike', 'Filtrar', () => {
+      applyFiltroCategorias();
     });
     const chkExibir = makeCheck('chkExibirTiposNucleoLike', 'Exibir na coluna', () => {
-      applyExibirTipos(!!chkExibir.checked);
+      applyExibirNaColuna(!!chkExibir.checked);
     });
     const chkInativas = makeCheck('chkIncluirInativasNucleoLike', 'Incluir inativas', () => {
       window.atpIncludeInactiveRules = !!chkInativas.checked;
@@ -6232,8 +6281,6 @@ function addOnlyConflictsCheckbox(table, onToggle) {
     txtCategorias.textContent = 'Categorias:';
     linhaCategorias.appendChild(txtCategorias);
 
-    const categoriaState = window.__ATP_UI_CATEGORIAS__ || { critico: true, atencao: true };
-    window.__ATP_UI_CATEGORIAS__ = categoriaState;
     const makeChip = (id, labelText, key) => {
       const chip = document.createElement('button');
       chip.type = 'button';
@@ -6250,6 +6297,7 @@ function addOnlyConflictsCheckbox(table, onToggle) {
       chip.addEventListener('click', () => {
         window.__ATP_UI_CATEGORIAS__[key] = !window.__ATP_UI_CATEGORIAS__[key];
         repaint();
+        applyFiltroCategorias();
       });
       repaint();
       linhaCategorias.appendChild(chip);
@@ -6262,14 +6310,13 @@ function addOnlyConflictsCheckbox(table, onToggle) {
     host.insertBefore(panel, host.firstChild || null);
 
     const syncChecks = () => {
-      let valOnly = false;
-      try { valOnly = !!onlyConflicts; } catch (_) { valOnly = !!window.onlyConflicts; }
-      chkFiltrar.checked = valOnly;
+      chkFiltrar.checked = !!(window && window.atpFiltroCategorias);
       chkExibir.checked = true;
       chkInativas.checked = !!window.atpIncludeInactiveRules;
-      applyExibirTipos(chkExibir.checked);
+      applyExibirNaColuna(chkExibir.checked);
     };
     syncChecks();
+    applyFiltroCategorias();
   }
 
   atpEnsureReportButton(host, panel, table);
@@ -6383,6 +6430,41 @@ function removeVisualizarFluxoButton() {
   } catch (_) {}
 }
 
+function atpLoadExpandColsState() {
+  try {
+    const v = localStorage.getItem('ATP_EXPAND_COLS');
+    if (v === '1') return true;
+    if (v === '0') return false;
+  } catch (_) {}
+  return false;
+}
+
+function atpSaveExpandColsState(expanded) {
+  try { localStorage.setItem('ATP_EXPAND_COLS', expanded ? '1' : '0'); } catch (_) {}
+}
+
+function atpApplyExpandColsState(table, expanded) {
+  try {
+    const tb = table || findTable();
+    if (!tb) return;
+
+    const asDisplay = (el, wantVisible) => {
+      if (!el) return;
+      const tag = String(el.tagName || '').toUpperCase();
+      const visibleDisplay = (tag === 'SPAN' || tag === 'A') ? 'inline' : 'block';
+      el.style.display = wantVisible ? visibleDisplay : 'none';
+    };
+
+    const resumidos = Array.from(tb.querySelectorAll('[id^="dadosResumidos_"]'));
+    const completos = Array.from(tb.querySelectorAll('[id^="dadosCompletos_"]'));
+    resumidos.forEach((el) => asDisplay(el, !expanded));
+    completos.forEach((el) => asDisplay(el, !!expanded));
+
+    tb.dataset.atpExpandCols = expanded ? '1' : '0';
+    try { document.documentElement.dataset.atpExpandCols = expanded ? '1' : '0'; } catch (_) {}
+  } catch (_) {}
+}
+
 function forceTableLengthTo1000() {
   try {
     const sel = document.querySelector('select[name="tableAutomatizacaoLocalizadores_length"]');
@@ -6431,6 +6513,7 @@ function disableAlterarPreferenciaNumRegistros() {
     removeVisualizarFluxoButton();
     forceTableLengthTo1000();
     ensureColumns(table);
+    try { atpApplyExpandColsState(table, atpLoadExpandColsState()); } catch (_) {}
     updateAllRemoverLupasByTooltipText(table);
     addOnlyConflictsCheckbox(table, () => schedule(() => applyFilter(table), 0, 'atp-apply-filter'));
     atpQueueRecalc(table, 0);
@@ -6453,6 +6536,7 @@ function disableAlterarPreferenciaNumRegistros() {
       placeSortOrderControlsOnNewLine();
       removeVisualizarFluxoButton();
       forceTableLengthTo1000();
+      try { atpApplyExpandColsState(table, atpLoadExpandColsState()); } catch (_) {}
       try { addOnlyConflictsCheckbox(table, () => schedule(() => applyFilter(table), 0, 'atp-apply-filter')); } catch (_) {}
       atpQueueRecalc(table, 280);
     });

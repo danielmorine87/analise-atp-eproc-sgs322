@@ -33,7 +33,19 @@ try { console.log('[ATP][LOAD] 06-analisador-de-colisoes.js carregado com sucess
       if (chkAtiva && !ativa) {
         tr.dataset.atpInactive = "1";
         if (!includeInactive) {
-          tr.style.display = "none";
+          try {
+            const confTd = tr.querySelector('td[data-atp-col="conflita"]');
+            if (confTd) {
+              confTd.innerHTML = '';
+              delete confTd.dataset.atpRenderedHtml;
+              delete confTd.dataset.atpConfNums;
+            }
+          } catch (_) {}
+          try {
+            delete tr.dataset.atpHasConflict;
+            delete tr.dataset.atpHasPossible;
+            tr.classList.remove('atp-sev-2', 'atp-sev-3', 'atp-sev-4', 'atp-sev-5');
+          } catch (_) {}
           continue;
         }
       }
@@ -1346,20 +1358,15 @@ function applyFilter(table) {
     const bodies = table.tBodies?.length ? Array.from(table.tBodies) : [table.querySelector('tbody')].filter(Boolean);
     const rows = bodies.flatMap(tb => Array.from(tb.rows));
     rows.forEach(tr => {
-      const includeInactive = atpShouldIncludeInactiveRules();
       const filtroCategorias = (window && window.atpFiltroCategorias) ? window.atpFiltroCategorias : null;
       const apenasAtencao = !!window.onlyPossibleConflicts;
       const apenasCriticos = !!onlyConflicts;
-      if (tr.dataset.atpInactive === '1' && !includeInactive) {
-        tr.style.display = 'none';
-        return;
-      }
       if (filtroCategorias && typeof filtroCategorias === 'object') {
         const filtrarCritico = !!filtroCategorias.critico;
         const filtrarAtencao = !!filtroCategorias.atencao;
         const temFiltroCategoria = filtrarCritico || filtrarAtencao;
         if (!temFiltroCategoria) {
-          tr.style.display = '';
+          tr.style.display = 'none';
           return;
         }
         const mostrarCritico = filtrarCritico && tr.dataset.atpHasConflict === '1';
