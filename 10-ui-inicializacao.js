@@ -23,6 +23,23 @@
 
 try { console.log('[ATP][LOAD] 10-ui-inicializacao.js carregado com sucesso'); } catch (e) {}
 
+try {
+  if (!window.__ATP_GLOBAL_ERR_HOOKS__) {
+    window.__ATP_GLOBAL_ERR_HOOKS__ = true;
+    window.addEventListener('error', (ev) => {
+      try {
+        const msg = ev && ev.message ? String(ev.message) : '(sem mensagem)';
+        const src = ev && ev.filename ? String(ev.filename) : '';
+        const ln = ev && typeof ev.lineno === 'number' ? ev.lineno : '';
+        console.warn('[ATP][JS][error]', msg, src ? `${src}${ln ? ':' + ln : ''}` : '', ev?.error || ev);
+      } catch (_) {}
+    });
+    window.addEventListener('unhandledrejection', (ev) => {
+      try { console.warn('[ATP][JS][unhandledrejection]', ev?.reason || ev); } catch (_) {}
+    });
+  }
+} catch (_) {}
+
 window.ATP_TABLE_ID = window.ATP_TABLE_ID || 'tableAutomatizacaoLocalizadores';
 function atpGetRulesState() {
   if (typeof window.atpGetLastRules === 'function') {
