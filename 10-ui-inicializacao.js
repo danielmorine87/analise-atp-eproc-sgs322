@@ -1451,6 +1451,46 @@ function atpAgruparConflitosPorRegraPivo(table, cols) {
 
       line.appendChild(badge);
       line.appendChild(numsTxt);
+
+      if (tipo === 'Avaliar Prioridade' && baseNum) {
+        const btnOk = document.createElement('button');
+        btnOk.type = 'button';
+        btnOk.className = 'infraButton';
+        btnOk.textContent = 'OK';
+        btnOk.title = 'Marcar como revisado (não exibir mais "Avaliar Prioridade" para estes pares)';
+        btnOk.style.marginLeft = '8px';
+        btnOk.style.fontSize = '11px';
+        btnOk.style.padding = '0 6px';
+        btnOk.style.lineHeight = '18px';
+        btnOk.style.height = '18px';
+        btnOk.addEventListener('click', (ev) => {
+          try { ev.preventDefault(); } catch (_) {}
+          try { ev.stopPropagation(); } catch (_) {}
+          try {
+            const rules = (typeof atpGetRulesState === 'function') ? atpGetRulesState() : [];
+            const byNum = new Map((rules || []).map(r => [String(r.num), r]));
+            const A = byNum.get(String(baseNum));
+            if (!A?.sig || typeof atpReviewedPairKey !== 'function' || typeof atpToggleReviewedPriorityPair !== 'function') {
+              const open = window && window.atpOpenPriorityReviewManager;
+              if (typeof open === 'function') open();
+              return;
+            }
+            nums.forEach((n) => {
+              const B = byNum.get(String(n));
+              if (!B?.sig) return;
+              const pk = atpReviewedPairKey(A.sig, B.sig);
+              atpToggleReviewedPriorityPair(pk);
+            });
+            if (typeof atpQueueRecalc === 'function') atpQueueRecalc(table, 0);
+          } catch (_) {
+            try {
+              const open = window && window.atpOpenPriorityReviewManager;
+              if (typeof open === 'function') open();
+            } catch (_) {}
+          }
+        });
+        line.appendChild(btnOk);
+      }
       root.appendChild(line);
     });
 
