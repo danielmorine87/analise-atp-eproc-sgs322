@@ -66,11 +66,7 @@ function atpQueueRecalc(table, wait = 200) {
     }
     state.running = true;
     try {
-      try {
-        recalc(table);
-      } catch (e) {
-        try { console.warn('[ATP][UI] recalc falhou:', e); } catch (_) {}
-      }
+      recalc(table);
     } finally {
       state.running = false;
       if (state.pending) {
@@ -3004,7 +3000,7 @@ function isATPAutomationPage() {
 function atpEnsureReportButton(host, afterLabelEl, tableRef) {
   try {
     if (!host) return;
-    if (host.querySelector('#btnGerarRelatorioColisoes') && host.querySelector('#btnRelatorioUnidadeATP') && host.querySelector('#btnDashboardUsoATP') && host.querySelector('#chkExpandirColunasATP') && host.querySelector('#btnGerenciarRevisoesATP')) {
+    if (host.querySelector('#btnGerarRelatorioColisoes') && host.querySelector('#btnRelatorioUnidadeATP') && host.querySelector('#btnDashboardUsoATP') && host.querySelector('#chkExpandirColunasATP')) {
       try {
         host.querySelector('#btnAuditoriaPriorizacaoATP')?.remove();
         host.querySelector('#btnGrafoConflitosATP')?.remove();
@@ -3019,7 +3015,6 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
       host.querySelector('#btnExpandirColunasATP')?.remove();
       host.querySelector('#lblExpandirColunasATP')?.remove();
       host.querySelector('#chkExpandirColunasATP')?.remove();
-      host.querySelector('#btnGerenciarRevisoesATP')?.remove();
       host.querySelector('#btnAuditoriaPriorizacaoATP')?.remove();
       host.querySelector('#btnGrafoConflitosATP')?.remove();
       host.querySelector('#btnMapaRelacoesATP')?.remove();
@@ -3854,21 +3849,6 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
     txtExpandCols.textContent = 'Expandir colunas';
     lblExpandCols.appendChild(chkExpandCols);
     lblExpandCols.appendChild(txtExpandCols);
-
-    const btnReviewMgr = document.createElement('button');
-    btnReviewMgr.type = 'button';
-    btnReviewMgr.className = 'infraButton';
-    btnReviewMgr.id = 'btnGerenciarRevisoesATP';
-    btnReviewMgr.textContent = '✅ Revisões';
-    btnReviewMgr.style.marginLeft = '8px';
-    btnReviewMgr.addEventListener('mouseenter', () => { btnReviewMgr.style.background = '#e5e7eb'; });
-    btnReviewMgr.addEventListener('mouseleave', () => { btnReviewMgr.style.background = '#f3f4f6'; });
-    btnReviewMgr.addEventListener('click', function () {
-      try {
-        const fn = window && window.atpOpenPriorityReviewManager;
-        if (typeof fn === 'function') fn();
-      } catch (_) {}
-    });
 
     const btnAudit = document.createElement('button');
     btnAudit.type = 'button';
@@ -6149,12 +6129,10 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
       const anchor = afterLabelEl.nextSibling;
       host.insertBefore(btnUnitReport, anchor);
       host.insertBefore(btn, btnUnitReport);
-      host.insertBefore(btnReviewMgr, btn);
-      host.insertBefore(lblExpandCols, btnReviewMgr);
+      host.insertBefore(lblExpandCols, btn);
       host.insertBefore(btnDashboard, anchor);
     } else {
       host.appendChild(lblExpandCols);
-      host.appendChild(btnReviewMgr);
       host.appendChild(btn);
       host.appendChild(btnUnitReport);
       host.appendChild(btnDashboard);
@@ -7311,15 +7289,7 @@ function disableAlterarPreferenciaNumRegistros() {
     if (bootATPInit._started) return;
     bootATPInit._started = true;
     atpBootstrapInitLoading();
-    schedule(() => {
-      try {
-        Promise.resolve()
-          .then(() => init())
-          .catch((e) => { try { console.warn('[ATP][UI] init falhou:', e); } catch (_) {} });
-      } catch (e) {
-        try { console.warn('[ATP][UI] init falhou:', e); } catch (_) {}
-      }
-    }, 1200);
+    schedule(() => { init(); }, 1200);
   }
 
   if (document.readyState === 'loading') {

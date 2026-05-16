@@ -10,136 +10,6 @@ try { console.log('[ATP][LOAD] 06-analisador-de-colisoes.js carregado com sucess
     return false;
   }
 
-  const ATP_PRIO_REVIEWED_PAIRS_KEY = 'ATP_PRIO_REVIEWED_PAIRS_V1';
-
-  function atpGetStorageScopeKey() {
-    const pick = (sel) => {
-      try {
-        const el = document.querySelector(sel);
-        const txt = String(el?.textContent || el?.innerText || '').trim();
-        return txt || '';
-      } catch (_) { return ''; }
-    };
-    const pickSelected = (sel) => {
-      try {
-        const el = document.querySelector(sel);
-        if (!el) return '';
-        const opt = el.options && el.selectedIndex >= 0 ? el.options[el.selectedIndex] : null;
-        const txt = String(opt?.textContent || '').trim();
-        if (txt) return txt;
-        return String(el.value || '').trim();
-      } catch (_) { return ''; }
-    };
-    const orgaoSelecionado =
-      pickSelected('#selOrgao') ||
-      pickSelected('select[name="selOrgao"]') ||
-      pickSelected('select[id*="Orgao"]') ||
-      pickSelected('select[name*="Orgao"]');
-    const candidates = [
-      orgaoSelecionado,
-      pick('#spnInfraUnidade'),
-      pick('#spnInfraDescricaoUnidade'),
-      pick('.infraNomeUnidade')
-    ].filter(Boolean);
-    const raw = String(candidates.find((s) => String(s || '').trim().length >= 6) || '').trim();
-    const host = String(location?.host || '').trim();
-    const base = [host, raw].filter(Boolean).join('|');
-    const normd = rmAcc(clean(base || ''))
-      .toUpperCase()
-      .replace(/[^\w|.-]+/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .slice(0, 140);
-    return normd;
-  }
-
-  function atpScopedStorageKey(baseKey) {
-    const b = String(baseKey || '').trim();
-    const scope = atpGetStorageScopeKey();
-    return scope ? `${b}::${scope}` : b;
-  }
-
-  function atpLoadJsonLocal(key, fallback) {
-    const baseKey = String(key || '');
-    const scopedKey = atpScopedStorageKey(baseKey);
-    try {
-      const raw = localStorage.getItem(scopedKey);
-      if (!raw) return fallback;
-      const v = JSON.parse(raw);
-      return (v && typeof v === 'object') ? v : fallback;
-    } catch (_) {}
-    if (scopedKey !== baseKey) {
-      try {
-        const raw = localStorage.getItem(baseKey);
-        if (!raw) return fallback;
-        const v = JSON.parse(raw);
-        const out = (v && typeof v === 'object') ? v : fallback;
-        if (out && typeof out === 'object') {
-          try { localStorage.setItem(scopedKey, raw); } catch (_) {}
-        }
-        return out;
-      } catch (_) {}
-    }
-    return fallback;
-  }
-
-  function atpSaveJsonLocal(key, value) {
-    try { localStorage.setItem(atpScopedStorageKey(key), JSON.stringify(value || {})); } catch (_) {}
-  }
-
-  function atpRuleSignatureFromParts(num, localRem, tipo, locInc, outros) {
-    const n = clean(String(num || ''));
-    const a = clean(String(localRem || ''));
-    const b = clean(String(tipo || ''));
-    const c = clean(String(locInc || ''));
-    const d = clean(String(outros || ''));
-    return [n, a, b, c, d].join('||');
-  }
-
-  function atpReviewedPairKey(aSig, bSig) {
-    const a = String(aSig || '');
-    const b = String(bSig || '');
-    return (a <= b) ? `${a}##${b}` : `${b}##${a}`;
-  }
-
-  function atpIsReviewedPriorityPair(aSig, bSig, reviewedMap) {
-    const map = reviewedMap || atpLoadJsonLocal(ATP_PRIO_REVIEWED_PAIRS_KEY, {});
-    const k = atpReviewedPairKey(aSig, bSig);
-    return !!(map && map[k]);
-  }
-
-  function atpToggleReviewedPriorityPair(pairKey) {
-    const map = atpLoadJsonLocal(ATP_PRIO_REVIEWED_PAIRS_KEY, {});
-    const k = String(pairKey || '').trim();
-    if (!k) return false;
-    const now = !map[k];
-    if (now) map[k] = 1;
-    else delete map[k];
-    atpSaveJsonLocal(ATP_PRIO_REVIEWED_PAIRS_KEY, map);
-    return now;
-  }
-
-  function atpApplyReviewedPrioritySuppressions(rules, conflictsByRule) {
-    const reviewed = atpLoadJsonLocal(ATP_PRIO_REVIEWED_PAIRS_KEY, {});
-    const byNum = new Map((rules || []).map(r => [String(r.num), r]));
-    for (const [baseNum, bucket] of (conflictsByRule || new Map()).entries()) {
-      const baseRule = byNum.get(String(baseNum));
-      if (!baseRule?.sig) continue;
-      for (const [otherNum, rec] of Array.from((bucket || new Map()).entries())) {
-        if (!rec?.tipos?.has?.('Avaliar Prioridade')) continue;
-        const otherRule = byNum.get(String(otherNum));
-        if (!otherRule?.sig) continue;
-        if (!atpIsReviewedPriorityPair(baseRule.sig, otherRule.sig, reviewed)) continue;
-        try {
-          rec.tipos.delete('Avaliar Prioridade');
-          try { rec.motivosByTipo?.delete?.('Avaliar Prioridade'); } catch (_) {}
-          if (!rec.tipos.size) bucket.delete(otherNum);
-        } catch (_) {}
-      }
-      if (!(bucket && bucket.size)) conflictsByRule.delete(baseNum);
-    }
-  }
-
   function parseRules(table, cols) {
     cols = cols || {};
     const list = [];
@@ -193,7 +63,7 @@ try { console.log('[ATP][LOAD] 06-analisador-de-colisoes.js carregado com sucess
       if (!num) continue;
 
       const prioridadeTexto = extrairPrioridade(tdPrior || tdNumero);
-      const prioridadeBase = parsePriority(prioridadeTexto);
+      const prioridade = parsePriority(prioridadeTexto);
 
       const lerTextoCelula = (td) => {
         if (!td) return '';
@@ -233,21 +103,9 @@ try { console.log('[ATP][LOAD] 06-analisador-de-colisoes.js carregado com sucess
 
       const localizadorIncluirAcao = extrairLocalizadorIncluirAcao(tdIncluir);
 
-      const sig = atpRuleSignatureFromParts(
-        num,
-        clean(localizadorRemover?.canonical || localizadorRemover?.canon || localizadorRemover?.text || localizadorRemover || ''),
-        tipoCanonico,
-        clean(localizadorIncluirAcao?.canonical || localizadorIncluirAcao?.canon || localizadorIncluirAcao?.text || localizadorIncluirAcao || ''),
-        clean(outrosCriterios?.canonical || outrosCriterios?.canon || outrosCriterios?.text || outrosCriterios || '')
-      );
-
-      const prioridade = prioridadeBase;
-
       list.push({
         num,
         prioridade,
-        prioridadeOriginal: prioridadeBase,
-        sig,
         localizadorRemover,
 
         removerWildcard,
@@ -1434,7 +1292,6 @@ if (typeof ATP_CONFIG === 'undefined' || ATP_CONFIG?.analisarPerdaObjetoCondicio
         } catch (e) {}
       }
     }
-    try { atpApplyReviewedPrioritySuppressions(rules, conflictsByRule); } catch (_) {}
     return conflictsByRule;
   }
 
@@ -1497,260 +1354,6 @@ function makeCompareButton(ruleNum, confTd) {
     return btn;
   }
 
-function atpEnsurePriorityReviewClickHandler() {
-    if (window.__ATP_PRIO_REVIEW_BOUND__) return;
-    window.__ATP_PRIO_REVIEW_BOUND__ = true;
-    document.addEventListener('click', (ev) => {
-      const target = ev && ev.target instanceof Element ? ev.target : null;
-      const btn = target ? target.closest('[data-atp-prio-review=\"1\"]') : null;
-      if (!btn) return;
-      const pairKey = btn.getAttribute('data-atp-pair') || '';
-      if (!pairKey) return;
-      try { ev.preventDefault(); } catch (_) {}
-      try { ev.stopPropagation(); } catch (_) {}
-      atpToggleReviewedPriorityPair(pairKey);
-      try {
-        const tb = (typeof findTable === 'function') ? findTable() : null;
-        if (tb && typeof atpQueueRecalc === 'function') atpQueueRecalc(tb, 0);
-      } catch (_) {}
-    }, true);
-  }
-
-function atpGetStorageScopeLabel() {
-    const pick = (sel) => {
-      try {
-        const el = document.querySelector(sel);
-        const txt = String(el?.textContent || el?.innerText || '').trim();
-        return txt || '';
-      } catch (_) { return ''; }
-    };
-    const pickSelected = (sel) => {
-      try {
-        const el = document.querySelector(sel);
-        if (!el) return '';
-        const opt = el.options && el.selectedIndex >= 0 ? el.options[el.selectedIndex] : null;
-        const txt = String(opt?.textContent || '').trim();
-        if (txt) return txt;
-        return String(el.value || '').trim();
-      } catch (_) { return ''; }
-    };
-    const orgaoSelecionado =
-      pickSelected('#selOrgao') ||
-      pickSelected('select[name="selOrgao"]') ||
-      pickSelected('select[id*="Orgao"]') ||
-      pickSelected('select[name*="Orgao"]');
-    return (
-      orgaoSelecionado ||
-      pick('#spnInfraUnidade') ||
-      pick('#spnInfraDescricaoUnidade') ||
-      pick('.infraNomeUnidade') ||
-      ''
-    );
-  }
-
-function atpSigNum(sig) {
-    try {
-      const s = String(sig || '');
-      const first = s.split('||')[0] || '';
-      return clean(first);
-    } catch (_) { return ''; }
-  }
-
-function atpListReviewedPairs() {
-    const map = atpLoadJsonLocal(ATP_PRIO_REVIEWED_PAIRS_KEY, {});
-    const keys = Object.keys(map || {});
-    const items = [];
-    keys.forEach((k) => {
-      const sp = String(k || '').split('##');
-      if (sp.length !== 2) return;
-      const aSig = sp[0], bSig = sp[1];
-      const a = atpSigNum(aSig);
-      const b = atpSigNum(bSig);
-      if (!a || !b) return;
-      items.push({ pairKey: k, a, b });
-    });
-    items.sort((x, y) => (Number(x.a) - Number(y.a)) || (Number(x.b) - Number(y.b)) || String(x.pairKey).localeCompare(String(y.pairKey)));
-    return items;
-  }
-
-function atpDeleteReviewedPair(pairKey) {
-    const map = atpLoadJsonLocal(ATP_PRIO_REVIEWED_PAIRS_KEY, {});
-    const k = String(pairKey || '').trim();
-    if (!k) return;
-    delete map[k];
-    atpSaveJsonLocal(ATP_PRIO_REVIEWED_PAIRS_KEY, map);
-  }
-
-function atpClearReviewedPairs() {
-    atpSaveJsonLocal(ATP_PRIO_REVIEWED_PAIRS_KEY, {});
-  }
-
-function atpEnsureReviewManagerModal() {
-    let overlay = document.getElementById('atpReviewManagerOverlay');
-    if (overlay) return overlay;
-    overlay = document.createElement('div');
-    overlay.id = 'atpReviewManagerOverlay';
-    overlay.style.position = 'fixed';
-    overlay.style.inset = '0';
-    overlay.style.background = 'rgba(15, 23, 42, 0.45)';
-    overlay.style.zIndex = '2147483647';
-    overlay.style.display = 'none';
-
-    const panel = document.createElement('div');
-    panel.id = 'atpReviewManagerPanel';
-    panel.style.position = 'absolute';
-    panel.style.top = '50%';
-    panel.style.left = '50%';
-    panel.style.transform = 'translate(-50%, -50%)';
-    panel.style.width = 'min(980px, 92vw)';
-    panel.style.maxHeight = 'min(78vh, 740px)';
-    panel.style.overflow = 'auto';
-    panel.style.background = '#fff';
-    panel.style.border = '1px solid #cbd5e1';
-    panel.style.borderRadius = '10px';
-    panel.style.boxShadow = '0 12px 40px rgba(0,0,0,0.25)';
-
-    const header = document.createElement('div');
-    header.style.display = 'flex';
-    header.style.alignItems = 'center';
-    header.style.justifyContent = 'space-between';
-    header.style.gap = '10px';
-    header.style.padding = '10px 12px';
-    header.style.borderBottom = '1px solid #e2e8f0';
-
-    const title = document.createElement('div');
-    title.id = 'atpReviewManagerTitle';
-    title.style.fontWeight = '700';
-    title.style.color = '#0f172a';
-    title.textContent = 'Revisões (Prioridade Indefinida)';
-
-    const btnClose = document.createElement('button');
-    btnClose.type = 'button';
-    btnClose.className = 'infraButton';
-    btnClose.textContent = 'Fechar';
-    btnClose.addEventListener('click', () => { overlay.style.display = 'none'; });
-
-    header.appendChild(title);
-    header.appendChild(btnClose);
-
-    const body = document.createElement('div');
-    body.id = 'atpReviewManagerBody';
-    body.style.padding = '12px';
-
-    panel.appendChild(header);
-    panel.appendChild(body);
-    overlay.appendChild(panel);
-
-    overlay.addEventListener('click', (e) => {
-      if (e && e.target === overlay) overlay.style.display = 'none';
-    });
-
-    document.body.appendChild(overlay);
-    return overlay;
-  }
-
-function atpRenderReviewManagerModal() {
-    const overlay = document.getElementById('atpReviewManagerOverlay');
-    const body = document.getElementById('atpReviewManagerBody');
-    const title = document.getElementById('atpReviewManagerTitle');
-    if (!overlay || !body) return;
-
-    const scopeLabel = atpGetStorageScopeLabel();
-    if (title) title.textContent = scopeLabel ? `Revisões (Prioridade Indefinida) — ${scopeLabel}` : 'Revisões (Prioridade Indefinida)';
-
-    body.textContent = '';
-
-    const reviewed = atpListReviewedPairs();
-
-    const mkSectionTitle = (txt) => {
-      const el = document.createElement('div');
-      el.style.fontWeight = '700';
-      el.style.color = '#0f172a';
-      el.style.margin = '0 0 6px 0';
-      el.textContent = txt;
-      return el;
-    };
-    const mkMuted = (txt) => {
-      const el = document.createElement('div');
-      el.style.color = '#64748b';
-      el.style.fontSize = '12px';
-      el.textContent = txt;
-      return el;
-    };
-    const mkRow = () => {
-      const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.alignItems = 'center';
-      row.style.justifyContent = 'space-between';
-      row.style.gap = '10px';
-      row.style.padding = '6px 0';
-      row.style.borderBottom = '1px dashed #e2e8f0';
-      return row;
-    };
-
-    const topBar = document.createElement('div');
-    topBar.style.display = 'flex';
-    topBar.style.gap = '8px';
-    topBar.style.flexWrap = 'wrap';
-    topBar.style.marginBottom = '10px';
-    const btnClearReviewed = document.createElement('button');
-    btnClearReviewed.type = 'button';
-    btnClearReviewed.className = 'infraButton';
-    btnClearReviewed.textContent = 'Limpar OK desta unidade';
-    btnClearReviewed.addEventListener('click', () => {
-      if (!confirm('Limpar todas as revisões (OK) desta unidade?')) return;
-      atpClearReviewedPairs();
-      atpRenderReviewManagerModal();
-      try {
-        const tb = (typeof findTable === 'function') ? findTable() : null;
-        if (tb && typeof atpQueueRecalc === 'function') atpQueueRecalc(tb, 0);
-      } catch (_) {}
-    });
-    topBar.appendChild(btnClearReviewed);
-    body.appendChild(topBar);
-
-    const secReviewed = document.createElement('div');
-    secReviewed.style.border = '1px solid #e2e8f0';
-    secReviewed.style.borderRadius = '8px';
-    secReviewed.style.padding = '10px';
-    secReviewed.style.marginBottom = '10px';
-    secReviewed.appendChild(mkSectionTitle(`OK (revisados): ${reviewed.length}`));
-    secReviewed.appendChild(mkMuted('Clique em "Desfazer" para voltar a exibir "Avaliar Prioridade" para o par.'));
-    if (!reviewed.length) {
-      secReviewed.appendChild(mkMuted('Nenhum par marcado como OK nesta unidade.'));
-    } else {
-      reviewed.forEach((it) => {
-        const row = mkRow();
-        const left = document.createElement('div');
-        left.textContent = `Regra ${it.a} x Regra ${it.b}`;
-        const btnUndo = document.createElement('button');
-        btnUndo.type = 'button';
-        btnUndo.className = 'infraButton';
-        btnUndo.textContent = 'Desfazer';
-        btnUndo.addEventListener('click', () => {
-          atpDeleteReviewedPair(it.pairKey);
-          atpRenderReviewManagerModal();
-          try {
-            const tb = (typeof findTable === 'function') ? findTable() : null;
-            if (tb && typeof atpQueueRecalc === 'function') atpQueueRecalc(tb, 0);
-          } catch (_) {}
-        });
-        row.appendChild(left);
-        row.appendChild(btnUndo);
-        secReviewed.appendChild(row);
-      });
-    }
-    body.appendChild(secReviewed);
-  }
-
-function atpOpenPriorityReviewManager() {
-    const overlay = atpEnsureReviewManagerModal();
-    atpRenderReviewManagerModal();
-    overlay.style.display = 'block';
-  }
-
-try { window.atpOpenPriorityReviewManager = atpOpenPriorityReviewManager; } catch (_) {}
-
 function applyFilter(table) {
     const bodies = table.tBodies?.length ? Array.from(table.tBodies) : [table.querySelector('tbody')].filter(Boolean);
     const rows = bodies.flatMap(tb => Array.from(tb.rows));
@@ -1781,7 +1384,6 @@ function applyFilter(table) {
 function render(table, rules, conflictsByRule) {
     const cols = mapColumns(table);
     const ruleByNum = new Map((rules || []).map(r => [String(r.num), r]));
-    const reviewedPairs = atpLoadJsonLocal(ATP_PRIO_REVIEWED_PAIRS_KEY, {});
     const bodies = table.tBodies?.length ? Array.from(table.tBodies) : [table.querySelector('tbody')].filter(Boolean);
     const rows = bodies.flatMap(tb => Array.from(tb.rows));
     const rowByNum = new Map();
@@ -1885,14 +1487,6 @@ for (const n of others) {
             const infoAttr = ehAtencao ? ' data-atp-info="1"' : '';
             return `<span class="atp-conf-tipo ${esc(tipoClass(tipo))}" data-atp-tipo="${esc(tipo)}" data-atp-impacto="${esc(impacto)}" data-atp-porque="${esc(motivo)}"${infoAttr}>${esc(tipo)}</span>`;
           }).join(' ');
-          let reviewBtn = '';
-          if (tiposAll.includes('Avaliar Prioridade') && Number(n) > 0) {
-            const otherRule = ruleByNum.get(String(n));
-            if (r?.sig && otherRule?.sig && !atpIsReviewedPriorityPair(r.sig, otherRule.sig, reviewedPairs)) {
-              const pk = atpReviewedPairKey(r.sig, otherRule.sig);
-              reviewBtn = ` <button type="button" class="infraButton" data-atp-prio-review="1" data-atp-pair="${esc(pk)}" style="margin-left:6px;font-size:11px;padding:0 6px;line-height:18px;height:18px" title="Marcar como revisado (não exibir 'Avaliar Prioridade')">OK</button>`;
-            }
-          }
           const nLabel = (Number(n) < 0) ? '(Própria Regra)' : esc(n);
           const apenasAtencao = tiposAll.length > 0
             && !tiposAll.some(t => conjuntoCritico.has(t))
@@ -1913,7 +1507,7 @@ for (const n of others) {
               possibleVisible += 1;
             }
           }
-          html += `<div${rowStyle} title="${esc(tooltipLinhaConflito)}" data-atp-conf-linha="1"><span class="atp-conf-num">${nLabel}:</span> ${spans}${reviewBtn}</div>`;
+          html += `<div${rowStyle} title="${esc(tooltipLinhaConflito)}" data-atp-conf-linha="1"><span class="atp-conf-num">${nLabel}:</span> ${spans}</div>`;
           maxSev = Math.max(maxSev, severity(rec));
         }
         if (possibleHidden > 0) {
@@ -1948,11 +1542,6 @@ for (const n of others) {
     }
 
     applyFilter(table);
-    try { atpEnsurePriorityReviewClickHandler(); } catch (_) {}
-    try {
-      const overlay = document.getElementById('atpReviewManagerOverlay');
-      if (overlay && overlay.style && overlay.style.display !== 'none') atpRenderReviewManagerModal();
-    } catch (_) {}
 
     try { markATPRenderTick(); } catch (e) {}
 }
