@@ -3,13 +3,13 @@
 // @namespace    https://github.com/danielmorine87/analise-atp-eproc-sgs322
 // @description  Script para análise de regras ATP no eProc, com relatório de colisões e relatório da unidade.
 // @author       Adriano Cardoso (projeto original) / Daniel Morine (adaptacao e evolucao)
-// @version      0.1.7
+// @version      0.1.8
 // @downloadURL  https://raw.githubusercontent.com/danielmorine87/analise-atp-eproc-sgs322/main/analise-atp-eproc.user.js
 // @updateURL    https://raw.githubusercontent.com/danielmorine87/analise-atp-eproc-sgs322/main/analise-atp-eproc.user.js
 // @homepageURL  https://github.com/danielmorine87/analise-atp-eproc-sgs322
 // @supportURL   https://github.com/danielmorine87/analise-atp-eproc-sgs322/issues
 // @run-at       document-start
- 
+//
 // @match        *://*/controlador.php?acao=automatizar_localizadores*
 // @match        *://*/*/controlador.php?acao=automatizar_localizadores*
 // @match        *://*/*/*/controlador.php?acao=automatizar_localizadores*
