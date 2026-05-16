@@ -1741,6 +1741,70 @@ function atpRenderReviewManagerModal() {
       });
     }
     body.appendChild(secReviewed);
+
+    const secPending = document.createElement('div');
+    secPending.style.border = '1px solid #e2e8f0';
+    secPending.style.borderRadius = '8px';
+    secPending.style.padding = '10px';
+    secPending.appendChild(mkSectionTitle('Pendentes (Avaliar Prioridade)'));
+    secPending.appendChild(mkMuted('Use "Marcar OK" aqui mesmo se a coluna Conflitos estiver ocultada.'));
+
+    const pending = (() => {
+      try {
+        const tb = (typeof findTable === 'function') ? findTable() : null;
+        if (!tb) return [];
+        const cols = (typeof mapColumns === 'function') ? mapColumns(tb) : {};
+        const rules = (typeof parseRules === 'function') ? parseRules(tb, cols) : [];
+        const byNum = new Map((rules || []).map(r => [String(r.num), r]));
+        const conf = (typeof analyze === 'function') ? (analyze(rules) || new Map()) : new Map();
+        const out = [];
+        const seen = new Set();
+        for (const [a, mapB] of (conf || new Map()).entries()) {
+          for (const [b, rec] of (mapB || new Map()).entries()) {
+            const nA = Number(a), nB = Number(b);
+            if (!Number.isFinite(nA) || !Number.isFinite(nB) || nB < 0 || nA >= nB) continue;
+            if (!rec?.tipos?.has?.('Avaliar Prioridade')) continue;
+            const A = byNum.get(String(a));
+            const B = byNum.get(String(b));
+            if (!A?.sig || !B?.sig) continue;
+            const pk = atpReviewedPairKey(A.sig, B.sig);
+            if (seen.has(pk)) continue;
+            seen.add(pk);
+            out.push({ a: String(a), b: String(b), pairKey: pk });
+          }
+        }
+        out.sort((x, y) => (Number(x.a) - Number(y.a)) || (Number(x.b) - Number(y.b)));
+        return out;
+      } catch (_) {
+        return [];
+      }
+    })();
+
+    if (!pending.length) {
+      secPending.appendChild(mkMuted('Nenhum "Avaliar Prioridade" pendente no recorte atual. Se você estiver filtrando, ligue a categoria "Atenção" e/ou habilite "Exibir na coluna".'));
+    } else {
+      pending.forEach((it) => {
+        const row = mkRow();
+        const left = document.createElement('div');
+        left.textContent = `Regra ${it.a} x Regra ${it.b}`;
+        const btnOk = document.createElement('button');
+        btnOk.type = 'button';
+        btnOk.className = 'infraButton';
+        btnOk.textContent = 'Marcar OK';
+        btnOk.addEventListener('click', () => {
+          atpToggleReviewedPriorityPair(it.pairKey);
+          atpRenderReviewManagerModal();
+          try {
+            const tb = (typeof findTable === 'function') ? findTable() : null;
+            if (tb && typeof atpQueueRecalc === 'function') atpQueueRecalc(tb, 0);
+          } catch (_) {}
+        });
+        row.appendChild(left);
+        row.appendChild(btnOk);
+        secPending.appendChild(row);
+      });
+    }
+    body.appendChild(secPending);
   }
 
 function atpOpenPriorityReviewManager() {
