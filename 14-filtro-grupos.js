@@ -117,7 +117,7 @@ try { console.log('[ATP][LOAD] 14-filtro-grupos.js carregado com sucesso'); } ca
 
     rows.forEach((row) => {
       const groupId = getRuleGroupId(row);
-      const hiddenByGroup = selectedGroups.size > 0 && !selectedGroups.has(groupId);
+      const hiddenByGroup = !selectedGroups.has(groupId);
       row.classList.toggle('atp-group-filter-hidden', hiddenByGroup);
       if (!groupId) unknownCount++;
       if (!hiddenByGroup && row.style.display !== 'none' && !row.hidden) visibleCount++;
@@ -126,7 +126,7 @@ try { console.log('[ATP][LOAD] 14-filtro-grupos.js carregado com sucesso'); } ca
     if (status) {
       status.textContent = selectedGroups.size
         ? `Exibindo ${visibleCount} de ${rows.length} regras${unknownCount ? ` · ${unknownCount} sem grupo identificado` : ''}`
-        : `${rows.length} regras carregadas`;
+        : `${rows.length} regras disponíveis · selecione grupos para exibir`;
     }
     updateButton();
   }
@@ -136,10 +136,10 @@ try { console.log('[ATP][LOAD] 14-filtro-grupos.js carregado com sucesso'); } ca
     if (!button) return;
     button.textContent = selectedGroups.size
       ? `${selectedGroups.size} grupo(s) selecionado(s) ▾`
-      : 'Todos os grupos ▾';
+      : 'Nenhum grupo selecionado ▾';
     button.title = selectedGroups.size
-      ? 'Filtrar as regras carregadas pelos grupos marcados'
-      : 'Exibindo todos os grupos carregados. Marque um ou mais grupos para filtrar.';
+      ? 'Exibindo apenas as regras dos grupos marcados'
+      : 'Nenhuma regra é exibida sem seleção. Marque um ou mais grupos.';
     button.setAttribute('aria-expanded', menu?.hidden ? 'false' : 'true');
   }
 
@@ -215,6 +215,13 @@ try { console.log('[ATP][LOAD] 14-filtro-grupos.js carregado com sucesso'); } ca
   }
 
   function setAllGroupsVisible() {
+    selectedGroups = new Set(groups.map((group) => group.id));
+    saveSelection();
+    renderGroupList();
+    applyGroupFilter();
+  }
+
+  function clearGroupSelection() {
     selectedGroups.clear();
     saveSelection();
     renderGroupList();
@@ -265,7 +272,7 @@ try { console.log('[ATP][LOAD] 14-filtro-grupos.js carregado com sucesso'); } ca
 
       const help = document.createElement('div');
       help.className = 'atp-group-filter-help';
-      help.textContent = 'Marque os grupos que deseja exibir. Sem marcações, todos ficam visíveis.';
+      help.textContent = 'Marque os grupos que deseja exibir. Sem marcação, nenhuma regra é exibida.';
       menu.appendChild(help);
 
       const tools = document.createElement('div');
@@ -284,6 +291,13 @@ try { console.log('[ATP][LOAD] 14-filtro-grupos.js carregado com sucesso'); } ca
       allButton.textContent = 'Exibir todos';
       allButton.addEventListener('click', setAllGroupsVisible);
       tools.appendChild(allButton);
+
+      const noneButton = document.createElement('button');
+      noneButton.type = 'button';
+      noneButton.className = 'infraButton';
+      noneButton.textContent = 'Limpar';
+      noneButton.addEventListener('click', clearGroupSelection);
+      tools.appendChild(noneButton);
       menu.appendChild(tools);
 
       list = document.createElement('div');
