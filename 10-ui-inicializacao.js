@@ -42,13 +42,45 @@ function atpGetRulesSnapshotForReports(table) {
   if (Array.isArray(rules) && rules.length) return rules;
   try {
     const tb = table || findTable();
-    if (tb) recalc(tb);
+    if (tb) {
+      try { ensureColumns(tb); } catch (_) {}
+      let cols = null;
+      try { cols = mapColumns(tb); } catch (_) { cols = null; }
+      if (cols) {
+        cols.colNumPrior = atpNucleoIndiceColunaNumeroNucleo(tb, cols);
+        const idxPrior = Number(atpNucleoIndiceColunaPrioridadeNucleo(tb));
+        if (Number.isFinite(idxPrior) && idxPrior >= 0) cols.colPrioridade = idxPrior;
+        rules = parseRules(tb, cols);
+        atpSetRulesState(rules);
+      }
+    }
   } catch (_) {}
   rules = atpGetRulesState();
   return Array.isArray(rules) ? rules : [];
 }
 
 const ATP_RECALC_STATE = new WeakMap();
+const ATP_HEAVY_ANALYSIS_STATE = new WeakMap();
+
+// --- ATP PERF PROBE (temporario - remover depois) ---
+const ATP_PERF_LOG = {};
+function atpPerfNow() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+function atpPerfAdd(label, dt) {
+  if (!(dt >= 0)) return;
+  ATP_PERF_LOG[label] = (ATP_PERF_LOG[label] || 0) + dt;
+  if (dt >= 50) { try { console.log('[ATP][PERF] ' + label + ': ' + dt.toFixed(0) + 'ms'); } catch (_) {} }
+}
+function atpPerfDump() {
+  const rows = Object.keys(ATP_PERF_LOG)
+    .map((k) => ({ etapa: k, total_ms: Math.round(ATP_PERF_LOG[k]) }))
+    .sort((a, b) => b.total_ms - a.total_ms);
+  try { console.log('[ATP][PERF] === resumo acumulado ==='); console.table(rows); } catch (_) { try { console.log(rows); } catch (__) {} }
+}
+try {
+  window.atpPerfDump = atpPerfDump;
+  window.atpPerfReset = () => { Object.keys(ATP_PERF_LOG).forEach((k) => delete ATP_PERF_LOG[k]); };
+} catch (_) {}
+// --- /ATP PERF PROBE ---
 
 function atpQueueRecalc(table, wait = 200) {
   if (!table) return;
@@ -67,7 +99,9 @@ function atpQueueRecalc(table, wait = 200) {
     state.running = true;
     try {
       try {
+        const _pt = atpPerfNow();
         recalc(table);
+        atpPerfAdd('recalc', atpPerfNow() - _pt);
       } catch (e) {
         try { console.warn('[ATP][UI] recalc falhou:', e); } catch (_) {}
       }
@@ -79,6 +113,106 @@ function atpQueueRecalc(table, wait = 200) {
       }
     }
   }, Math.max(0, wait || 0));
+}
+
+function atpQueueHeavyAnalysis(table, cols, rules, wait = 120) {
+  if (!table) return;
+  let state = ATP_HEAVY_ANALYSIS_STATE.get(table);
+  if (!state) {
+    state = { timer: null, running: false, pending: null };
+    ATP_HEAVY_ANALYSIS_STATE.set(table, state);
+  }
+  state.pending = { cols, rules };
+  if (state.timer) clearTimeout(state.timer);
+  state.timer = setTimeout(() => {
+    state.timer = null;
+    if (state.running) return;
+    state.running = true;
+    const payload = state.pending || { cols, rules };
+    state.pending = null;
+    try {
+      const activeCols = payload.cols || mapColumns(table);
+      const activeRules = Array.isArray(payload.rules) ? payload.rules : [];
+      if (!activeCols || !activeRules.length) {
+        try { markATPRenderTick(); } catch (_) {}
+        try {
+          if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(100, 'Analise concluida.');
+        } catch (_) {}
+        return;
+      }
+      const conflicts = analyze(activeRules);
+      render(table, activeRules, conflicts);
+      atpAgruparConflitosPorRegraPivo(table, activeCols);
+      atpNucleoGarantirColunaPrioridade(table, activeRules, activeCols);
+      atpNucleoGarantirOrdenacaoNasColunas(table, activeCols);
+      atpNucleoAplicarOrdenacaoLinhas(table);
+      try { table.dataset.atpAnalysisReady = '1'; } catch (_) {}
+      try { atpUpdateSimpleBadge(activeRules, conflicts); } catch (_) {}
+      try { updateAllRemoverLupasByTooltipText(table); } catch (_) {}
+      try { markATPRenderTick(); } catch (_) {}
+      try {
+        if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(100, 'Analise concluida.');
+      } catch (_) {}
+    } catch (e) {
+      try { console.warn('[ATP][UI] analise pesada falhou:', e); } catch (_) {}
+    } finally {
+      state.running = false;
+      if (state.pending) atpQueueHeavyAnalysis(table, state.pending.cols, state.pending.rules, 180);
+    }
+  }, Math.max(0, wait || 0));
+}
+
+function atpRequestAnalysis(table, reason) {
+  const tb = table || findTable();
+  if (!tb) return;
+  try {
+    if (typeof showATPLoading === 'function') showATPLoading();
+    if (typeof setATPLoadingProgress === 'function') {
+      setATPLoadingProgress(45, reason ? ('Preparando analise: ' + reason + '...') : 'Preparando analise...');
+    }
+  } catch (_) {}
+  try { tb.dataset.atpAnalysisReady = '0'; } catch (_) {}
+  atpQueueRecalc(tb, 0);
+}
+
+function atpHasAnalysisReady(table) {
+  try {
+    return !!(table && table.dataset && table.dataset.atpAnalysisReady === '1');
+  } catch (_) {}
+  return false;
+}
+
+function atpEnsureAnalysisReady(table, reason) {
+  const tb = table || findTable();
+  if (!tb) return Promise.resolve([]);
+  if (atpHasAnalysisReady(tb)) return Promise.resolve(atpGetRulesState());
+
+  try {
+    if (typeof showATPLoading === 'function') showATPLoading();
+    if (typeof setATPLoadingProgress === 'function') {
+      setATPLoadingProgress(15, reason ? ('Preparando ' + reason + '...') : 'Preparando analise...');
+    }
+  } catch (_) {}
+  atpRequestAnalysis(tb, reason || 'sob demanda');
+
+  return new Promise((resolve) => {
+    const t0 = Date.now();
+    const check = () => {
+      try {
+        if (atpHasAnalysisReady(tb)) {
+          resolve(atpGetRulesState());
+          return;
+        }
+        if ((Date.now() - t0) > 90000) {
+          try { if (typeof hideATPLoading === 'function') hideATPLoading(); } catch (_) {}
+          resolve(atpGetRulesState());
+          return;
+        }
+      } catch (_) {}
+      setTimeout(check, 250);
+    };
+    check();
+  });
 }
 
 function atpEscapeHtml(value) {
@@ -124,27 +258,27 @@ function atpFriendlyActionName(acao) {
 
 const ATP_MINI_HELP_UNIDADE_TIP = [
   'ESTÁGIO DE MATURIDADE',
-  'Classificação da unidade conforme a cobertura e o equilíbrio dos localizadores, variando de estágio inicial até referência operacional, conforme os indicadores estruturais e de execução.',
+  'Classificação do desenvolvimento da estrutura ATP observável, variando de estágio inicial até estrutura consolidada, conforme diversidade de localizadores, ações e indicadores de execução.',
   '',
   'MANUAIS / ERRO',
   'Localizadores que não são utilizados em nenhuma regra ativa (nem como origem, nem como destino). Em geral, estão associados a ações manuais ou são usados exclusivamente como localizador de erro.',
   '',
   'LOCALIZADOR APENAS NO REMOVER',
-  'Localizador de passagem: o processo sai dele por regra ATP, mas a entrada é manual ou externa. Avalie se a entrada também pode ser automatizada; se não for viável, mantenha a entrada manual documentada e utilize preferências.',
+  'Entrada sem origem ATP observada: o localizador é utilizado como origem por uma regra ATP, mas sua inclusão não foi identificada nas regras analisadas. A entrada pode ocorrer por preferência, movimentação do sistema, protocolo, ação do usuário ou outra transição externa à camada ATP.',
   '',
   'LOCALIZADOR APENAS NO INCLUIR',
-  'Destino final da automação: o processo chega ali por regra ATP, mas a saída depende de ação humana (gabinete, expedição de documentos etc.). Avalie se a saída pode ser automatizada sem perda de qualidade.',
+  'Destino sem continuidade ATP observada: o processo chega ao localizador por regra ATP, mas a continuidade não foi identificada nas regras analisadas. As subclasses provável Gabinete, provável Cumprimento e provável Fixo qualificam esse mesmo grupo e não demonstram encerramento do fluxo.',
   '',
   'TIPO FUNCIONAL',
   'Classificação do localizador conforme seu papel no fluxo de trabalho:',
   '- Sistema: localizadores incluídos automaticamente pelo sistema (ex.: PETIÇÃO, DECURSO DE PRAZO).',
-  '- Passagem: etapas de triagem ou encaminhamento.',
-  '- Concomitante: localizadores que, em ao menos uma situação, são incluídos e removidos por ATP.',
+  '- Entrada sem origem ATP observada: localizador usado no REMOVER, sem inclusão identificada nas regras ATP analisadas.',
+  '- Concomitante: localizador previsto como destino no INCLUIR de uma ou mais regras e como origem no REMOVER de uma ou mais regras. Isso caracteriza continuidade estrutural observada na camada ATP e demonstra a existência de fluxo ATP através desse localizador.',
   '- Gabinete: localizadores que representam envio à conclusão.',
   '- Cumprimento: localizadores associados a minutas não decisórias (expedição de documentos, mandados etc.).',
   '',
   'PREFERÊNCIAS',
-  'São configurações utilizadas na criação de minutas, intimações ou movimentações. Sua utilização minimiza erros e é essencial para a correta utilização de um fluxo.',
+  'São configurações utilizadas por servidores e magistrados na criação de minutas, intimações ou movimentações. Podem ligar trechos que aparecem separados quando são observadas somente as regras ATP e não são analisadas por este relatório.',
   '',
   'REGRAS COM AÇÃO / SEM AÇÃO',
   'Regras que executam ao menos uma ação programada (movimentação, evento, lembrete etc.) versus regras que apenas realizam triagem ou filtro, sem ação direta.',
@@ -1338,19 +1472,22 @@ function recalc(table) {
       addOnlyConflictsCheckbox(table, () => schedule(() => applyFilter(table), 0, 'atp-apply-filter'));
     } catch (_) {}
     atpNucleoRestaurarControleExecucaoNoNumero(table, cols);
-    updateAllRemoverLupasByTooltipText(table);
     replacePlainRemoverTextInTable(table, cols);
 
     if (typeof logAllRules === "function") logAllRules(rules);
-    if (!rules.length) { try { markATPRenderTick(); } catch (e) {} return; }
-    const conflicts = analyze(rules);
-    render(table, rules, conflicts);
-    atpAgruparConflitosPorRegraPivo(table, cols);
-    atpNucleoGarantirColunaPrioridade(table, rules, cols);
-    atpNucleoGarantirOrdenacaoNasColunas(table, cols);
-    atpNucleoAplicarOrdenacaoLinhas(table);
-    try { atpUpdateSimpleBadge(rules, conflicts); } catch (_) {}
+    if (!rules.length) {
+      try { table.dataset.atpAnalysisReady = '1'; } catch (_) {}
+      try {
+        if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(100, 'Tabela pronta. Nenhuma regra visivel para analisar.');
+      } catch (_) {}
+      try { markATPRenderTick(); } catch (e) {}
+      return;
+    }
+    try {
+      if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(70, 'Regras lidas. Finalizando a analise em segundo plano…');
+    } catch (_) {}
     try { markATPRenderTick(); } catch (e) {}
+    atpQueueHeavyAnalysis(table, cols, rules, 120);
   }
 
 function atpAgruparConflitosPorRegraPivo(table, cols) {
@@ -1411,6 +1548,12 @@ function atpAgruparConflitosPorRegraPivo(table, cols) {
     }
 
     if (!groups.size) return;
+
+    const flatNums = new Set();
+    groups.forEach((g) => { g.nums.forEach((n) => { if (n) flatNums.add(n); }); });
+    const flatSorted = toNumSort(Array.from(flatNums));
+    if (flatSorted.length) confTd.dataset.atpConfNums = flatSorted.join(',');
+    else delete confTd.dataset.atpConfNums;
 
     const orderedTypes = Array.from(groups.keys()).sort((a, b) => {
       const oa = ordemTipo(a);
@@ -1501,15 +1644,38 @@ function atpAgruparConflitosPorRegraPivo(table, cols) {
       if (typeof makeCompareButton === 'function') {
         confTd.appendChild(makeCompareButton(baseNum, confTd));
       } else {
+        const rawOthers = String(confTd.dataset.atpConfNums || '')
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+          .map(s => Number(s))
+          .filter(n => Number.isFinite(n) && n > 0)
+          .sort((a, b) => a - b);
+        const total = rawOthers.length;
+        const first = rawOthers.slice(0, 3);
+        const resto = Math.max(0, total - first.length);
+        const resumo = first.length
+          ? '#' + first.join(', #') + (resto > 0 ? ` (+${resto})` : '')
+          : '';
+        const all = Array.from(new Set([...rawOthers.map(String), String(baseNum)]))
+          .sort((a, b) => Number(a) - Number(b));
+
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'atp-compare-btn infraButton';
-        btn.textContent = 'Comparar';
+        btn.textContent = total > 0
+          ? '🔍 Comparar ' + (resumo ? 'com ' + resumo : 'regras')
+          : '🔍 Comparar regras';
         btn.style.marginTop = '6px';
+        btn.title =
+          total > 0
+            ? ('Filtra a tabela para mostrar lado a lado a regra #' + String(baseNum) +
+               ' e as outras ' + String(total) + ' regras relacionadas (' +
+               rawOthers.map(n => '#' + n).join(', ') + '). Revise prioridade, REMOVER/INCLUIR, critérios e ações programadas.')
+            : ('Filtra a tabela para mostrar lado a lado a regra #' + String(baseNum) +
+               ' e as demais regras relacionadas listadas acima.');
         btn.addEventListener('click', () => {
           try {
-            const others = String(confTd.dataset.atpConfNums || '').split(',').map(s => s.trim()).filter(Boolean);
-            const all = Array.from(new Set([...others, String(baseNum)])).sort((a, b) => Number(a) - Number(b));
             if (typeof setNumeroRegraAndSearch === 'function') setNumeroRegraAndSearch(all);
           } catch (_) {}
         });
@@ -1665,7 +1831,7 @@ function atpNucleoAplicarOrdenacaoLinhas(tabela) {
   const direcao = String(estado.direcao || 'nenhuma');
   const fator = direcao === 'decrescente' ? -1 : 1;
 
-  try { window.ATP_SUPPRESS_OBSERVER = true; } catch (_) {}
+  try { ATP_SUPPRESS_OBSERVER = true; } catch (_) {}
   try {
     corpos.forEach((tbody) => {
       const linhas = Array.from(tbody.rows || []);
@@ -1692,7 +1858,7 @@ function atpNucleoAplicarOrdenacaoLinhas(tabela) {
       linhas.forEach((tr) => tbody.appendChild(tr));
     });
   } finally {
-    setTimeout(() => { try { window.ATP_SUPPRESS_OBSERVER = false; } catch (_) {} }, 0);
+    setTimeout(() => { try { ATP_SUPPRESS_OBSERVER = false; } catch (_) {} }, 0);
   }
 }
 
@@ -2351,7 +2517,7 @@ function atpCollectUnitMetrics(rules, conflictsByRule) {
         label: v,
         tipo: classifyLocType(v),
         removerRules: Array.from(removerRulesByKey.get(k) || []).sort((a, b) => (Number(a) || 0) - (Number(b) || 0) || String(a).localeCompare(String(b), 'pt-BR')),
-        classeFluxo: (classifyLocType(v) === 'sistema') ? 'Sistema' : 'Provável Passagem'
+        classeFluxo: (classifyLocType(v) === 'sistema') ? 'Sistema' : 'Entrada sem origem ATP observada'
       }))
       .sort((a, b) => String(a.label).localeCompare(String(b.label), 'pt-BR'));
     const splitCount = (rows) => ({
@@ -2508,7 +2674,7 @@ function atpCollectUnitMetrics(rules, conflictsByRule) {
       const cSomenteIncluir = unitAuditRows.filter((r) => r.classe === 'Somente INCLUIR').length;
       const cSomenteRemover = unitAuditRows.filter((r) => r.classe === 'Somente REMOVER').length;
       const cManualOuErro = unitAuditRows.filter((r) => r.classe === 'Manual' || r.classe === 'Erro somente').length;
-      // Usa a mesma base auditada de "Somente REMOVER" para a leitura de "Provável Passagem".
+      // Usa a mesma base auditada de "Somente REMOVER" para identificar entradas sem origem ATP observada.
       provavelPassagemCount = cSomenteRemover;
       unitClosure.concomitantes = cConcomitante;
       unitClosure.incluirSemRemover = cSomenteIncluir;
@@ -3068,6 +3234,7 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
 
     const topEntries = (mapObj, limit) => Array.from((mapObj || new Map()).entries()).sort((a, b) => b[1] - a[1]).slice(0, limit);
     const buildCurrentUnitReport = (table, rules, conflictsByRule) => {
+      const hasConflictSummary = conflictsByRule instanceof Map;
       const metrics = atpCollectUnitMetrics(rules, conflictsByRule);
       const rows = Array.from(table?.tBodies?.length ? Array.from(table.tBodies).flatMap(tb => Array.from(tb.rows)) : table?.querySelectorAll('tbody tr') || []);
       let activeCount = 0;
@@ -3289,15 +3456,28 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
           .toLowerCase()
           .replace(/\s+/g, ' ')
           .trim();
+        const isOpaqueLocalResourceVar = (v) => {
+          try {
+            const api = window.ATP_OBSERVABLE_RULE_COMPARISON;
+            if (api && typeof api.isOpaqueVariable === 'function') return api.isOpaqueVariable(v);
+          } catch (_) {}
+          const nome = normalizeTxt(v?.nome || '');
+          return /(preferencia|modelo|template|minuta|texto padrao|documento modelo)/i.test(nome);
+        };
+        const observableActionVars = (a) => (Array.isArray(a?.vars) ? a.vars : [])
+          .filter((v) => !isOpaqueLocalResourceVar(v))
+          .map((v) => `${normalizeTxt(v?.nome || '')}=${normalizeTxt(v?.valor || '')}`)
+          .filter((v) => v !== '=')
+          .sort();
         const buildModelKey = (expr) => {
           const canonical = clean(exprCanon(expr, '') || expr?.canonical || '') || '(destino vazio)';
           const acoes = Array.isArray(expr?.acoes) ? expr.acoes : [];
           const acoesSig = acoes.map((a) => {
             const etapa = normalizeTxt(a?.etapa || '');
             const acao = normalizeTxt(a?.acao || '');
-            const vars = Array.isArray(a?.vars)
-              ? a.vars.map((v) => `${normalizeTxt(v?.nome || '')}=${normalizeTxt(v?.valor || '')}`).filter(Boolean).sort()
-              : [];
+            // Preferências, modelos, minutas e recursos locais opacos permanecem nos metadados,
+            // mas não participam da assinatura observável do padrão de ação.
+            const vars = observableActionVars(a);
             return `${etapa}||${acao}||${vars.join('&&')}`;
           }).sort();
           return `${normalizeTxt(canonical)}##${acoesSig.join('##')}`;
@@ -3307,9 +3487,9 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
           const sig = arr.map((a) => {
             const etapa = normalizeTxt(a?.etapa || '');
             const acao = normalizeTxt(a?.acao || '');
-            const vars = Array.isArray(a?.vars)
-              ? a.vars.map((v) => `${normalizeTxt(v?.nome || '')}=${normalizeTxt(v?.valor || '')}`).filter(Boolean).sort()
-              : [];
+            // Preferências, modelos, minutas e recursos locais opacos permanecem nos metadados,
+            // mas não participam da assinatura observável do padrão de ação.
+            const vars = observableActionVars(a);
             return `${etapa}||${acao}||${vars.join('&&')}`;
           }).sort();
           return sig.join('##') || '(acao vazia)';
@@ -3373,27 +3553,29 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
 
       const totalLoc = Math.max(0, incluirDistinct + removerDistinct - concomitantes);
       const acoesUnicasTotais = Number(modelosAcao.actionDistinct || 0);
-      const maturidadeMagnitude = (
+      // Estima o desenvolvimento da estrutura ATP observável.
+      // Não considera preferências, uso efetivo nem continuidade externa às regras.
+      const maturidadeEstruturaAtp = (
         Math.log10(Math.max(0, removerDistinct) + 1)
         + Math.log10(Math.max(0, incluirDistinct) + 1)
         + Math.log10(Math.max(0, acoesUnicasTotais) + 1)
         + Math.log10(Math.max(0, andamentoCount) + 1)
       );
       const stageScore = (() => {
-        const m = Number(maturidadeMagnitude || 0);
+        const m = Number(maturidadeEstruturaAtp || 0);
         if (m >= 9) return 4;
         if (m >= 7) return 3;
         if (m >= 5) return 2;
         if (m >= 3.5) return 1;
         return 0;
       })();
-      const stageName = ['Inicial', 'Em Estruturação', 'Intermediário', 'Maturidade', 'Referência Operacional'][stageScore] || 'Inicial';
+      const stageName = ['Estrutura ATP Inicial', 'Estrutura ATP em Desenvolvimento', 'Estrutura ATP Intermediária', 'Estrutura ATP Avançada', 'Estrutura ATP Consolidada'][stageScore] || 'Estrutura ATP Inicial';
       const maturidadeTexto = (() => {
-        if (stageScore >= 4) return 'A unidade atingiu referência operacional, com automação consolidada, repertório consistente de localizadores e desenho estável para o volume de regras em produção.';
-        if (stageScore === 3) return 'A unidade apresenta maturidade, com boa estrutura na seleção de localizadores e predominância de regras focadas em localizadores da própria unidade.';
-        if (stageScore === 2) return 'A unidade apresenta maturidade intermediária, com base funcional ativa e espaço para reduzir pontos manuais e ampliar cobertura de localizadores da unidade.';
-        if (stageScore === 1) return 'A unidade está em fase de estruturação, com avanço parcial de cobertura e necessidade de consolidar padrão de entrada e saída dos localizadores.';
-        return 'A unidade ainda está em estágio inicial de maturidade, com base de regras reduzida para consolidar leitura estrutural estável.';
+        if (stageScore >= 4) return 'A unidade apresenta estrutura ATP consolidada, com ampla diversidade de localizadores, ações e regras configuradas.';
+        if (stageScore === 3) return 'A unidade apresenta estrutura ATP avançada, com diversidade relevante de entradas, destinos e ações automatizadas.';
+        if (stageScore === 2) return 'A unidade apresenta estrutura ATP intermediária, com automação distribuída por diferentes localizadores e padrões de ação.';
+        if (stageScore === 1) return 'A unidade apresenta estrutura ATP em desenvolvimento, com automações já identificáveis, mas ainda concentradas em um conjunto limitado de localizadores ou ações.';
+        return 'A unidade apresenta estrutura ATP inicial, com base de regras ainda reduzida para caracterizar uma automação ampla.';
       })();
 
       const triagemAndamentoRazao = Number(ruleTri || 0) / Math.max(1, Number(ruleAnd || 0));
@@ -3501,13 +3683,13 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
         if (totalLoc < 50) {
           return 'Os números absolutos ainda são reduzidos, indicando que a unidade está nos estágios iniciais de automação. O foco agora deve ser aumentar a abrangência das regras ATP, expandindo o número de localizadores alcançados, tanto na entrada quanto na saída.';
         }
-        return 'Os ' + String(nApenasRemoverUnidade) + ' localizadores que aparecem apenas no REMOVER (' + pctApenasRemoverTxt + ' do total) são tipicamente localizadores de passagem: o processo sai deles por regra ATP, mas a entrada é feita manualmente ou por evento externo (ex.: protocolo de petição). A automação atua apenas na saída. Avalie se a entrada também poderia ser automatizada — por exemplo, transformando esse localizador em destino de outra regra ATP ou de um documento automatizado, ao menos para alguma situação —, se isso fizer sentido para o fluxo. Quando não for viável, mantenha a entrada manual documentada; a utilização de preferências é essencial para a correta movimentação dos processos dentro do fluxo.';
+        return 'Os ' + String(nApenasRemoverUnidade) + ' localizadores que aparecem apenas no REMOVER (' + pctApenasRemoverTxt + ' do total) são entradas sem origem ATP observada: o processo sai deles por regra ATP, mas sua inclusão não foi identificada nas regras analisadas. A entrada pode ocorrer por preferência, movimentação do sistema, protocolo, ação do usuário ou outra transição externa. Esse dado descreve um limite de observabilidade e não comprova fragmentação do fluxo.';
       })();
       const textoApenasIncluirPorFaixa = (() => {
         if (totalLoc < 50) {
           return 'Os números absolutos ainda são reduzidos, indicando que a unidade está nos estágios iniciais de automação. O foco agora deve ser aumentar a abrangência das regras ATP, expandindo o número de localizadores alcançados, tanto na entrada quanto na saída.';
         }
-        return 'Os ' + String(nApenasIncluirUnidade) + ' localizadores que aparecem apenas no INCLUIR (' + pctApenasIncluirTxt + ' do total) são tipicamente destinos finais da automação: o processo chega ali por regra ATP, mas a saída depende de ação humana. Em geral, são gabinetes (ex.: conclusos para decisão), pontos de expedição de documentos (ex.: expedir carta, mandado) ou etapas em que a intervenção humana é indispensável. Avalie se alguma dessas saídas poderia ser automatizada sem perda de qualidade — por exemplo, com expedição automática de documento.';
+        return 'Os ' + String(nApenasIncluirUnidade) + ' localizadores que aparecem apenas no INCLUIR (' + pctApenasIncluirTxt + ' do total) são destinos sem continuidade ATP observada. As subclasses provável Gabinete, provável Cumprimento e provável Fixo qualificam esse mesmo grupo. A continuidade pode ocorrer por preferência ou por outra transição externa às regras e, por isso, esses destinos não representam necessariamente término ou fragmentação do fluxo.';
       })();
       const recApenasUnificadaExtremos = (() => {
         if (totalLoc < 50) {
@@ -3539,7 +3721,7 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
         recs.push('Consultar o Relatório de Colisões: há ' + String(nAtencaoTotal) + ' pares de Atenção' + detalhesAtencao + ' para validação de intencionalidade da ordem de prioridade.');
       }
 
-      lines.push('Relatório da Unidade ATP (V3)');
+      lines.push('Relatório da Unidade ATP (V4)');
       lines.push('Data/Hora: ' + (new Date()).toLocaleString());
       lines.push('Referência: regras ATP atualmente carregadas na tabela');
       if (contextoUnidade.orgao) lines.push('Órgão selecionado: ' + contextoUnidade.orgao);
@@ -3548,13 +3730,18 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
       }
       lines.push('');
 
-      lines.push('Diagnóstico de Maturidade:');
+      lines.push('Maturidade da Estrutura ATP:');
       lines.push('- Estágio: ' + String(stageScore) + ' - ' + stageName);
       lines.push('- INCLUIR distintos: ' + String(metrics.incluirDistinct || 0));
       lines.push('- REMOVER distintos (token/base da matriz): ' + String(metrics.incluirSemRemover?.removerRawCount || 0));
       lines.push('- Concomitantes: ' + String(concomitantes));
+      lines.push('- Continuidade estrutural ATP: ' + (concomitantes > 0 ? 'observada em ' + String(concomitantes) + ' localizador(es)' : 'não identificada por concomitância'));
       lines.push('- Manuais/Erro: ' + String(manuaisErroCount));
       lines.push(maturidadeTexto);
+      lines.push('');
+      lines.push('Escopo da Análise:');
+      lines.push('Este diagnóstico considera exclusivamente a estrutura observável nas regras ATP. Preferências utilizadas por servidores e magistrados, movimentações delas decorrentes e outras transições externas às regras não são analisadas neste relatório.');
+      lines.push('Quando um localizador aparece no INCLUIR e no REMOVER, há continuidade estrutural observada na camada ATP. Nos demais pontos, a ausência de conexão ATP direta não significa necessariamente interrupção do fluxo, pois a continuidade pode ocorrer por meio de preferência.');
       lines.push('');
 
       lines.push('Indicadores de Execução:');
@@ -3570,18 +3757,27 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
       }
       lines.push('');
 
-      lines.push('Localizadores Apenas no REMOVER:');
+      lines.push('Entradas sem Origem ATP Observada (apenas no REMOVER):');
       lines.push('- Total (unidade): ' + String(remOnlyUnidadeRows.length));
       lines.push('- Total (sistema): ' + String(remOnlySistemaRows.length));
       lines.push('- Total geral: ' + String(remOnlyRows.length));
       lines.push(textoApenasRemoverPorFaixa);
       lines.push('');
 
-      lines.push('Localizadores Apenas no INCLUIR:');
+      lines.push('Destinos sem Continuidade ATP Observada (apenas no INCLUIR):');
       lines.push('- Total (unidade): ' + String(incOnlyUnidadeRows.length));
       lines.push('- Total (sistema): ' + String(incOnlySistemaRows.length));
       lines.push('- Total geral: ' + String(incOnlyRows.length));
       lines.push(textoApenasIncluirPorFaixa);
+      lines.push('');
+
+      lines.push('Limites de Observabilidade do Fluxo:');
+      lines.push('- Destinos sem continuidade ATP observada: ' + String(incOnlyUnidadeRows.length));
+      lines.push('- Entradas sem origem ATP observada: ' + String(remOnlyUnidadeRows.length));
+      lines.push('- Pontos de continuidade ATP observada (concomitantes): ' + String(concomitantes));
+      lines.push('- Preferências analisadas: não');
+      lines.push('Esses valores descrevem os limites da análise pelas regras ATP e não devem ser interpretados isoladamente como falhas, encerramentos ou interrupções do fluxo.');
+      lines.push('Concomitante caracteriza continuidade estrutural observada: uma ou mais regras levam ao localizador e uma ou mais regras partem dele. Portanto, há fluxo ATP através desse ponto.');
       lines.push('');
 
       lines.push('Ações Programadas:');
@@ -3624,10 +3820,15 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
         recs.push('A unidade apresenta muitos padrões de triagem distintos em relação ao andamento. Avalie consolidar triagens equivalentes e converter as mais objetivas em ações de andamento.');
       }
 
-      lines.push('Resumo de Conflitos:');
-      lines.push('- Críticos: ' + String(conflitosCriticos));
-      lines.push('- Atenção: ' + String(conflitosAtencao));
-      lines.push('Para detalhamento por regra e motivo, consulte o Relatório de Colisões.');
+      lines.push('Saúde da Configuração - Resumo de Conflitos:');
+      if (hasConflictSummary) {
+        lines.push('- Críticos: ' + String(conflitosCriticos));
+        lines.push('- Atenção: ' + String(conflitosAtencao));
+        lines.push('Para detalhamento por regra e motivo, consulte o Relatório de Colisões.');
+      } else {
+        lines.push('- Resumo de conflitos não calculado nesta geração rápida.');
+        lines.push('Para detalhamento por regra e motivo, use "Analisar agora" ou o "Relatório de Colisões".');
+      }
       lines.push('');
 
       lines.push('Top 5 Destinos (INCLUIR):');
@@ -3668,11 +3869,11 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
     btn.addEventListener('mouseenter', () => { btn.style.background = '#e5e7eb'; });
     btn.addEventListener('mouseleave', () => { btn.style.background = '#f3f4f6'; });
 
-    btn.addEventListener('click', function () {
+    btn.addEventListener('click', async function () {
       try {
         var table = tableRef || findTable();
         if (!table) return;
-        var rules = atpGetRulesSnapshotForReports(table);
+        var rules = await atpEnsureAnalysisReady(table, 'relatorio de colisoes');
         if (!rules.length) return;
         var conflictsByRule = (typeof analyze === 'function') ? (analyze(rules) || new Map()) : new Map();
 
@@ -3811,11 +4012,11 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
     btnFluxos.addEventListener('mouseenter', () => { btnFluxos.style.background = '#e5e7eb'; });
     btnFluxos.addEventListener('mouseleave', () => { btnFluxos.style.background = '#f3f4f6'; });
 
-    btnFluxos.addEventListener('click', function () {
+    btnFluxos.addEventListener('click', async function () {
       try {
         var table = tableRef || findTable();
         if (!table) return;
-        const rules = atpGetRulesSnapshotForReports(table);
+        const rules = await atpEnsureAnalysisReady(table, 'extrato de fluxos');
         if (!rules.length) return;
         const txt = atpBuildFluxosText(rules);
 
@@ -3840,24 +4041,38 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
     btnUnitReport.style.marginLeft = '8px';
     btnUnitReport.addEventListener('mouseenter', () => { btnUnitReport.style.background = '#e5e7eb'; });
     btnUnitReport.addEventListener('mouseleave', () => { btnUnitReport.style.background = '#f3f4f6'; });
-    btnUnitReport.addEventListener('click', function () {
+    btnUnitReport.addEventListener('click', async function () {
       try {
         var table = tableRef || findTable();
         if (!table) return;
+        try {
+          if (typeof showATPLoading === 'function') showATPLoading();
+          if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(20, 'Lendo regras para o relatorio da unidade...');
+        } catch (_) {}
         const rules = atpGetRulesSnapshotForReports(table);
         if (!rules.length) return;
-        const conflictsByRule = (typeof analyze === 'function') ? analyze(rules) : new Map();
-        const txt = buildCurrentUnitReport(table, rules, conflictsByRule);
+        try {
+          if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(70, 'Montando o relatorio da unidade...');
+        } catch (_) {}
+        const txt = buildCurrentUnitReport(table, rules, null);
         var blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url;
         a.download = 'relatorio_unidade_ATP.txt';
         document.body.appendChild(a);
+        try {
+          if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(100, 'Relatorio pronto. Baixando arquivo...');
+        } catch (_) {}
         a.click();
-        setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) { } try { a.remove(); } catch (e) { } }, 0);
+        setTimeout(function () {
+          try { URL.revokeObjectURL(url); } catch (e) { }
+          try { a.remove(); } catch (e) { }
+          try { if (typeof hideATPLoading === 'function') hideATPLoading(); } catch (_) {}
+        }, 200);
       } catch (e) {
         console.warn(LOG_PREFIX, 'Falha ao gerar relatório da unidade atual', e);
+        try { if (typeof hideATPLoading === 'function') hideATPLoading(); } catch (_) {}
       }
     });
 
@@ -6208,6 +6423,66 @@ function atpEnsureReportButton(host, afterLabelEl, tableRef) {
   } catch (e) { }
 }
 
+// Gerenciamento em lote: ativar / desativar / desfazer regras visiveis.
+function atpGetVisibleCheckboxRows(table) {
+  const tb = table || findTable();
+  if (!tb) return [];
+  const bodies = (tb.tBodies && tb.tBodies.length)
+    ? Array.from(tb.tBodies)
+    : [tb.querySelector('tbody')].filter(Boolean);
+  const rows = bodies.flatMap((b) => Array.from(b.rows || []));
+  return rows
+    .filter((tr) => tr && tr.style.display !== 'none' && !tr.hidden)
+    .map((tr) => ({ tr, chk: tr.querySelector('input.custom-control-input') }))
+    .filter((item) => !!item.chk);
+}
+
+function atpBulkSetActive(table, targetState) {
+  const items = atpGetVisibleCheckboxRows(table);
+  if (!items.length) return 0;
+  const snap = (window.__ATP_BULK_UNDO_SNAPSHOT__ =
+    window.__ATP_BULK_UNDO_SNAPSHOT__ || new Map());
+  let changed = 0;
+  for (const { tr, chk } of items) {
+    if (!snap.has(chk)) snap.set(chk, chk.checked);
+    if (chk.checked !== targetState) {
+      const label =
+        chk.closest('label') ||
+        tr.querySelector('label.custom-control-label') ||
+        tr.querySelector('label[for="' + chk.id + '"]');
+      try {
+        if (label) label.click();
+        else chk.click();
+      } catch (_) {}
+      changed++;
+    }
+  }
+  return changed;
+}
+
+function atpBulkUndo(table) {
+  const snap = window.__ATP_BULK_UNDO_SNAPSHOT__;
+  if (!snap || !snap.size) return 0;
+  let restored = 0;
+  for (const [chk, originalState] of snap.entries()) {
+    if (chk.checked !== originalState) {
+      const tr = chk.closest('tr');
+      const label =
+        chk.closest('label') ||
+        (tr && (tr.querySelector('label.custom-control-label') ||
+                tr.querySelector('label[for="' + chk.id + '"]')));
+      try {
+        if (label) label.click();
+        else chk.click();
+      } catch (_) {}
+      restored++;
+    }
+  }
+  window.__ATP_BULK_UNDO_SNAPSHOT__ = null;
+  try { atpQueueRecalc(table || findTable(), 300); } catch (_) {}
+  return restored;
+}
+
 function addOnlyConflictsCheckbox(table, onToggle) {
   const host = document.getElementById('dvFiltrosOpcionais');
   if (!host) return;
@@ -6367,8 +6642,112 @@ function addOnlyConflictsCheckbox(table, onToggle) {
     makeChip('btnChipCategoriaCriticoNucleoLike', 'Crítico', 'critico');
     makeChip('btnChipCategoriaAtencaoNucleoLike', 'Atenção', 'atencao');
 
+    const linhaGerenciamento = document.createElement('div');
+    linhaGerenciamento.style.cssText = [
+      'display:flex', 'align-items:center', 'gap:6px',
+      'flex-wrap:wrap', 'margin-top:3px', 'padding-top:3px',
+      'border-top:1px solid #e2e8f0'
+    ].join(';');
+
+    const lblGer = document.createElement('span');
+    lblGer.textContent = 'Regras:';
+    lblGer.style.cssText = 'font-size:12px;white-space:nowrap';
+    linhaGerenciamento.appendChild(lblGer);
+
+    const syncUndoBtn = () => {
+      const el = document.getElementById('btnAtpDesfazerGrupo');
+      if (!el) return;
+      const hasSnap = !!(window.__ATP_BULK_UNDO_SNAPSHOT__ &&
+        window.__ATP_BULK_UNDO_SNAPSHOT__.size);
+      el.disabled = !hasSnap;
+      el.style.opacity = hasSnap ? '1' : '.4';
+      el.style.cursor = hasSnap ? 'pointer' : 'default';
+    };
+
+    const makeGerBtn = (id, text, title, onClick) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = id;
+      btn.className = 'infraButton';
+      btn.title = title;
+      btn.textContent = text;
+      btn.style.cssText = 'padding:2px 8px;font-size:11px;border-radius:4px';
+      btn.addEventListener('click', onClick);
+      linhaGerenciamento.appendChild(btn);
+      return btn;
+    };
+
+    makeGerBtn(
+      'btnAtpAnalisarAgora',
+      '🔎 Analisar agora',
+      'Executa a analise ATP sob demanda. Em unidades pesadas, evita travar a abertura da tela.',
+      () => {
+        try { atpRequestAnalysis(table || findTable(), 'clique manual'); } catch (e) { try { console.warn('[ATP] Erro ao iniciar analise manual:', e); } catch (_) {} }
+      }
+    );
+
+    makeGerBtn(
+      'btnAtpAtivarGrupo',
+      '✅ Ativar todas',
+      'Ativa todas as regras visiveis na tabela (respeita filtros ativos)',
+      () => {
+        try {
+          const tb = table || findTable();
+          const n = atpBulkSetActive(tb, true);
+          syncUndoBtn();
+          try { atpQueueRecalc(tb, 300); } catch (_) {}
+          if (!n) {
+            try {
+              if (typeof window.infraTooltipMostrar === 'function') {
+                window.infraTooltipMostrar('Todas as regras visiveis ja estao ativas.', 'ATP', 420);
+              }
+            } catch (_) {}
+          }
+        } catch (e) { try { console.warn('[ATP] Erro ao ativar em lote:', e); } catch (_) {} }
+      }
+    );
+
+    makeGerBtn(
+      'btnAtpDesativarGrupo',
+      '❌ Desativar todas',
+      'Desativa todas as regras visiveis na tabela (respeita filtros ativos)',
+      () => {
+        try {
+          const tb = table || findTable();
+          const n = atpBulkSetActive(tb, false);
+          syncUndoBtn();
+          try { atpQueueRecalc(tb, 300); } catch (_) {}
+          if (!n) {
+            try {
+              if (typeof window.infraTooltipMostrar === 'function') {
+                window.infraTooltipMostrar('Todas as regras visiveis ja estao inativas.', 'ATP', 420);
+              }
+            } catch (_) {}
+          }
+        } catch (e) { try { console.warn('[ATP] Erro ao desativar em lote:', e); } catch (_) {} }
+      }
+    );
+
+    const btnDesfazer = makeGerBtn(
+      'btnAtpDesfazerGrupo',
+      '↩ Desfazer',
+      'Reverte as ativacoes/inativacoes feitas pelos botoes acima',
+      () => {
+        try {
+          const tb = table || findTable();
+          atpBulkUndo(tb);
+          syncUndoBtn();
+          try { atpQueueRecalc(tb, 300); } catch (_) {}
+        } catch (e) { try { console.warn('[ATP] Erro ao desfazer:', e); } catch (_) {} }
+      }
+    );
+    btnDesfazer.disabled = true;
+    btnDesfazer.style.opacity = '.4';
+    btnDesfazer.style.cursor = 'default';
+
     panel.appendChild(linhaAcoes);
     panel.appendChild(linhaCategorias);
+    panel.appendChild(linhaGerenciamento);
     host.insertBefore(panel, host.firstChild || null);
 
     const syncChecks = () => {
@@ -6412,7 +6791,10 @@ function ensureSortOrderControlsVisible() {
       try { el.style.opacity = ''; } catch (_) {}
     });
 
-    const labels = Array.from(document.querySelectorAll('label, span, div'));
+    // Varredura limitada ao host dos filtros. Antes era document.querySelectorAll('label, span, div')
+    // no documento inteiro, executada a cada mutacao (custo altissimo com tabela de 1000 linhas).
+    const scopeVis = document.getElementById('dvFiltrosOpcionais') || document;
+    const labels = Array.from(scopeVis.querySelectorAll('label, span, div'));
     labels.forEach((el) => {
       const txt = String(el.textContent || '').trim().toLowerCase();
       if (!txt.includes('ordenar regras por')) return;
@@ -6441,6 +6823,14 @@ function placeSortOrderControlsOnNewLine() {
     const chkRegra = document.getElementById('chkOrdenacaoRegra2');
     if (!lblGrupo || !chkGrupo || !lblRegra || !chkRegra) return;
 
+    // Guarda anti-loop: se a linha ja esta montada com os 4 controles, nao remonta.
+    // Remontar recria nos dentro da subarvore observada e re-alimenta o observer.
+    if (row.dataset && row.dataset.atpArranged === '1'
+      && chkGrupo.parentNode === row && lblGrupo.parentNode === row
+      && chkRegra.parentNode === row && lblRegra.parentNode === row) {
+      return;
+    }
+
     row.style.display = 'flex';
     row.style.alignItems = 'center';
     row.style.gap = '6px';
@@ -6467,13 +6857,16 @@ function placeSortOrderControlsOnNewLine() {
     try { chkRegra.style.margin = '0 4px 0 0'; } catch (_) {}
 
     // Remove qualquer rótulo "Ordenar regras por" que tenha sobrado fora da linha de ordenação.
-    Array.from(document.querySelectorAll('label.mr-3, label, span, div')).forEach((el) => {
+    const scopePurge = document.getElementById('dvFiltrosOpcionais') || document;
+    Array.from(scopePurge.querySelectorAll('label.mr-3, label, span, div')).forEach((el) => {
       if (el === title || row.contains(el)) return;
       const txt = String(el.textContent || '').trim().toLowerCase();
       if (txt === 'ordenar regras por:' || txt === 'ordenar regras por') {
         try { el.remove(); } catch (_) {}
       }
     });
+
+    if (row.dataset) row.dataset.atpArranged = '1';
   } catch (_) {}
 }
 
@@ -6528,15 +6921,10 @@ function atpApplyExpandColsState(table, expanded) {
 }
 
 function forceTableLengthTo1000() {
-  try {
-    const sel = document.querySelector('select[name="tableAutomatizacaoLocalizadores_length"]');
-    if (!sel) return;
-    if (String(sel.value) === '1000') return;
-    const has1000 = Array.from(sel.options || []).some(o => String(o.value) === '1000');
-    if (!has1000) return;
-    sel.value = '1000';
-    sel.dispatchEvent(new Event('change', { bubbles: true }));
-  } catch (_) { }
+  // Teste isolado: nao forcamos 1000 registros por pagina.
+  // Assim conseguimos medir se a lentidao estava ligada ao redraw pesado
+  // do DataTables/grade nessa configuracao.
+  return;
 }
 
 function disableAlterarPreferenciaNumRegistros() {
@@ -6545,14 +6933,17 @@ function disableAlterarPreferenciaNumRegistros() {
 
   async function init() {
     if (!isATPAutomationPage()) return;
+    const atpYield = (ms = 0) => new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
     try {
       if (typeof showATPLoading === 'function') showATPLoading();
-      if (typeof setATPLoadingMsg === 'function') setATPLoadingMsg('Aguardando carregamento completo do eProc…');
+      if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(5, 'Aguardando carregamento completo do eProc…');
+      else if (typeof setATPLoadingMsg === 'function') setATPLoadingMsg('Aguardando carregamento completo do eProc…');
     } catch (_) {}
     injectStyle();
     const host = await waitATPHost(30000);
     if (host) {
       try {
+        if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(12, 'Montando a barra inicial…');
         atpEnsureEmergencyConflictToolbar();
         addOnlyConflictsCheckbox(null, () => schedule(() => {
           const tb = findTable();
@@ -6567,20 +6958,49 @@ function disableAlterarPreferenciaNumRegistros() {
       try { if (typeof hideATPLoading === 'function') hideATPLoading(); } catch (_) {}
       return;
     }
-    try { if (typeof setATPLoadingMsg === 'function') setATPLoadingMsg('Carregamento completo. Analisando colisões…'); } catch (_) {}
-    disableAlterarPreferenciaNumRegistros();
-    removeSortOrderControls();
-    ensureSortOrderControlsVisible();
-    placeSortOrderControlsOnNewLine();
-    removeVisualizarFluxoButton();
-    forceTableLengthTo1000();
-    ensureColumns(table);
+    try {
+      if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(20, 'Tabela encontrada. Preparando interface…');
+      else if (typeof setATPLoadingMsg === 'function') setATPLoadingMsg('Carregamento completo. Preparando interface…');
+    } catch (_) {}
+    { const _t = atpPerfNow(); disableAlterarPreferenciaNumRegistros(); removeSortOrderControls(); atpPerfAdd('init.removeSortOrderControls', atpPerfNow() - _t); }
+    { const _t = atpPerfNow(); ensureSortOrderControlsVisible(); atpPerfAdd('init.ensureSortOrderControlsVisible', atpPerfNow() - _t); }
+    { const _t = atpPerfNow(); placeSortOrderControlsOnNewLine(); atpPerfAdd('init.placeSortOrderControlsOnNewLine', atpPerfNow() - _t); }
+    await atpYield(0);
+    try {
+      if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(38, 'Aplicando colunas e filtros basicos…');
+    } catch (_) {}
+    { const _t = atpPerfNow(); ensureColumns(table); atpPerfAdd('init.ensureColumns', atpPerfNow() - _t); }
     try { atpApplyExpandColsState(table, atpLoadExpandColsState()); } catch (_) {}
-    updateAllRemoverLupasByTooltipText(table);
-    addOnlyConflictsCheckbox(table, () => schedule(() => applyFilter(table), 0, 'atp-apply-filter'));
-    atpQueueRecalc(table, 0);
-    table.addEventListener('change', () => atpQueueRecalc(table, 180), true);
+    { const _t = atpPerfNow(); addOnlyConflictsCheckbox(table, () => schedule(() => applyFilter(table), 0, 'atp-apply-filter')); atpPerfAdd('init.addOnlyConflictsCheckbox', atpPerfNow() - _t); }
+    try { table.dataset.atpAnalysisReady = '0'; } catch (_) {}
+    await atpYield(0);
+    try {
+      if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(100, 'Tela pronta. Clique em "Analisar agora" quando quiser rodar a analise.');
+      else if (typeof setATPLoadingMsg === 'function') setATPLoadingMsg('Tela pronta. Clique em "Analisar agora".');
+    } catch (_) {}
+    table.addEventListener('change', () => {
+      try {
+        if (table.dataset.atpAnalysisReady === '1') atpQueueRecalc(table, 180);
+      } catch (_) {}
+    }, true);
     const root = table.parentElement || document.body;
+    // A bateria de ajustes e idempotente. Coalescemos uma rajada de mutacoes
+    // em UMA execucao (debounce). Antes ela rodava sincrona em cada callback.
+    let atpObsBatteryTimer = null;
+    const atpRunObserverBattery = () => {
+      atpObsBatteryTimer = null;
+      const _pt = atpPerfNow();
+      // Em unidades pesadas, o observer deve apenas coalescer um novo recalc.
+      // Reaplicar toda a bateria aqui reabre o custo alto repetidamente.
+      try { addOnlyConflictsCheckbox(table, () => schedule(() => applyFilter(table), 0, 'atp-apply-filter')); } catch (_) {}
+      try {
+        if (table.dataset.atpAnalysisReady === '1') atpQueueRecalc(table, 280);
+      } catch (_) {}
+      // Descarta as mutacoes que nos mesmos geramos acima (senao o observer
+      // se re-alimenta: mutacao -> callback -> mutacao).
+      try { mo.takeRecords(); } catch (_) {}
+      atpPerfAdd('observer.battery', atpPerfNow() - _pt);
+    };
     const mo = new MutationObserver((mutations) => {
       if (ATP_SUPPRESS_OBSERVER) return;
       const relevant = (mutations || []).some((m) => {
@@ -6592,17 +7012,15 @@ function disableAlterarPreferenciaNumRegistros() {
         return true;
       });
       if (!relevant) return;
-      disableAlterarPreferenciaNumRegistros();
-      removeSortOrderControls();
-      ensureSortOrderControlsVisible();
-      placeSortOrderControlsOnNewLine();
-      removeVisualizarFluxoButton();
-      forceTableLengthTo1000();
-      try { atpApplyExpandColsState(table, atpLoadExpandColsState()); } catch (_) {}
-      try { addOnlyConflictsCheckbox(table, () => schedule(() => applyFilter(table), 0, 'atp-apply-filter')); } catch (_) {}
-      atpQueueRecalc(table, 280);
+      if (atpObsBatteryTimer !== null) return;
+      atpObsBatteryTimer = setTimeout(atpRunObserverBattery, 300);
     });
     mo.observe(root, { childList: true, subtree: true });
+    try {
+      if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(72, 'Monitorando atualizacoes da tabela…');
+    } catch (_) {}
+    setTimeout(atpPerfDump, 12000);
+    setTimeout(atpPerfDump, 25000);
     try {
       const repair = () => {
         try {
@@ -6617,6 +7035,16 @@ function disableAlterarPreferenciaNumRegistros() {
       schedule(repair, 300, 'atp-repair-fast');
       schedule(repair, 1200, 'atp-repair-mid');
       schedule(repair, 3000, 'atp-repair-slow');
+    } catch (_) {}
+    try {
+      if (typeof setATPLoadingProgress === 'function') setATPLoadingProgress(100, 'Tela pronta. A analise ficou sob demanda.');
+    } catch (_) {}
+    try {
+      // O loading agora e apenas informativo. Encerramos cedo para priorizar a
+      // interacao e deixamos os reparos/analise fina seguirem em segundo plano.
+      schedule(() => {
+        try { if (typeof hideATPLoading === 'function') hideATPLoading(); } catch (_) {}
+      }, 900, 'atp-force-hide-loading');
     } catch (_) {}
   }
 

@@ -301,12 +301,10 @@ function showATPLoading() {
     overlay.id = ATP_LOADING_ID;
     overlay.style.cssText = `
       position: fixed;
-      inset: 0;
+      top: 16px;
+      right: 16px;
       z-index: 999999;
-      background: rgba(243, 244, 246, 0.85);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      pointer-events: none;
       font-family: Arial, Helvetica, sans-serif;
     `;
 
@@ -314,27 +312,31 @@ function showATPLoading() {
       <div style="
         background: #ffffff;
         border: 1px solid #d1d5db;
-        border-radius: 8px;
-        padding: 24px 32px;
+        border-radius: 10px;
+        padding: 14px 16px;
         box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-        text-align: center;
-        min-width: 320px;
+        width: 340px;
+        max-width: calc(100vw - 32px);
       ">
-        <div style="
-          width: 42px;
-          height: 42px;
-          margin: 0 auto 16px;
-          border: 4px solid #e5e7eb;
-          border-top-color: #2563eb;
-          border-radius: 50%;
-          animation: atp-spin 1s linear infinite;
-        "></div>
-
-        <div style="font-size: 15px; font-weight: bold; color: #111827;">
-          Análise de ATP – eProc
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <div style="font-size: 14px; font-weight: bold; color: #111827;">
+            Análise de ATP - eProc
+          </div>
+          <div id="atpLoadingPct" style="font-size: 12px; font-weight: bold; color: #2563eb;">
+            5%
+          </div>
         </div>
-        <div id="atpLoadingMsg" style="font-size: 13px; color: #374151; margin-top: 6px;">
+        <div id="atpLoadingMsg" style="font-size: 12px; color: #374151; margin-top: 6px;">
           Aguardando carregamento completo do eProc…
+        </div>
+        <div style="margin-top: 10px; height: 6px; background: #e5e7eb; border-radius: 999px; overflow: hidden;">
+          <div id="atpLoadingBar" style="
+            width: 5%;
+            height: 100%;
+            background: linear-gradient(90deg, #2563eb 0%, #60a5fa 100%);
+            border-radius: 999px;
+            transition: width .25s ease;
+          "></div>
         </div>
       </div>
     `;
@@ -342,9 +344,7 @@ function showATPLoading() {
     if (!document.getElementById('atp-loading-style')) {
       const style = document.createElement('style');
       style.id = 'atp-loading-style';
-      style.textContent = `
-        @keyframes atp-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `;
+      style.textContent = ``;
       (document.head || document.documentElement).appendChild(style);
     }
 
@@ -364,6 +364,19 @@ function setATPLoadingMsg(msg) {
   try {
     const el = document.getElementById('atpLoadingMsg');
     if (el) el.textContent = msg;
+  } catch { }
+}
+
+function setATPLoadingProgress(pct, msg) {
+  try {
+    var n = Number(pct);
+    if (!Number.isFinite(n)) n = 0;
+    n = Math.max(0, Math.min(100, Math.round(n)));
+    const bar = document.getElementById('atpLoadingBar');
+    if (bar) bar.style.width = n + '%';
+    const label = document.getElementById('atpLoadingPct');
+    if (label) label.textContent = n + '%';
+    if (typeof msg === 'string' && msg) setATPLoadingMsg(msg);
   } catch { }
 }
 
@@ -413,14 +426,11 @@ function scheduleHideATPLoading(silenceMs = 1800) {
           scheduleHideATPLoading(silenceMs);
           return;
         }
-
-        const hasReportBtn = !!document.getElementById('btnGerarRelatorioColisoes');
-        const hasAnyConflictCell = !!document.querySelector('#tableAutomatizacaoLocalizadores td[data-atp-cell="conflito"], #tableAutomatizacaoLocalizadores td.atp-cell-conflito');
-        if (hasReportBtn || hasAnyConflictCell) {
-          hideATPLoading();
-        } else {
-          scheduleHideATPLoading(silenceMs);
-        }
+        // O overlay serve apenas como feedback inicial. Se ja houve ao menos um
+        // ciclo de renderizacao e a pagina ficou estavel por alguns instantes,
+        // escondemos o loading mesmo que a deteccao de botoes/celulas falhe.
+        // Isso evita o caso de "carregou por baixo, mas o modal ficou preso".
+        hideATPLoading();
       } catch { }
     }, silenceMs);
   } catch { }

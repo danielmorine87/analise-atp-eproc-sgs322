@@ -5,6 +5,11 @@ try { console.log('[ATP][LOAD] config.js carregado com sucesso'); } catch (e) { 
 const LOG_PREFIX = '[ATP]';
 const TABLE_ID = 'tableAutomatizacaoLocalizadores';
 let onlyConflicts = false;
+// Flag compartilhada do MutationObserver. PRECISA ser declarada: os modulos
+// apenas atribuiam (ATP_SUPPRESS_OBSERVER = true) e liam (if (ATP_SUPPRESS_OBSERVER)).
+// A LEITURA de uma global inexistente lanca ReferenceError — era exatamente esse
+// o "Uncaught" na primeira linha do callback do observer (10-ui-inicializacao.js).
+let ATP_SUPPRESS_OBSERVER = false;
 const ATP_VERSION = '10.66';
 
 const tipoRank = {

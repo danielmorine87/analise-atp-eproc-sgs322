@@ -1481,17 +1481,37 @@ function setNumeroRegraAndSearch(nums) {
   }
 
 function makeCompareButton(ruleNum, confTd) {
+    const others = (confTd.dataset.atpConfNums || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(s => Number(s))
+      .filter(n => Number.isFinite(n) && n > 0)
+      .sort((a, b) => a - b);
+    const total = others.length;
+    const first = others.slice(0, 3);
+    const resto = Math.max(0, total - first.length);
+    const resumo = first.length
+      ? '#' + first.join(', #') + (resto > 0 ? ` (+${resto})` : '')
+      : '';
+    const all = Array.from(new Set([...others.map(String), String(ruleNum)]))
+      .sort((a, b) => Number(a) - Number(b));
+
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'atp-compare-btn infraButton';
-    btn.textContent = 'Comparar';
+    btn.textContent = total > 0
+      ? '🔍 Comparar ' + (resumo ? 'com ' + resumo : 'regras')
+      : '🔍 Comparar regras';
+    btn.title =
+      total > 0
+        ? ('Filtra a tabela para mostrar lado a lado a regra #' + String(ruleNum) +
+           ' e as outras ' + String(total) + ' regras com as quais há conflito/interseção (' +
+           others.map(n => '#' + n).join(', ') + '). Você poderá revisar prioridade, ' +
+           'REMOVER/INCLUIR, critérios e ações programadas.')
+        : ('Filtra a tabela para mostrar lado a lado a regra #' + String(ruleNum) +
+           ' e as demais regras relacionadas listadas acima.');
     btn.addEventListener('click', () => {
-      const others = (confTd.dataset.atpConfNums || '')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
-      const all = Array.from(new Set([...others, String(ruleNum)]))
-        .sort((a, b) => Number(a) - Number(b));
       setNumeroRegraAndSearch(all);
     });
     return btn;

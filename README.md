@@ -14,7 +14,7 @@ Esta versão está focada em:
 - marcação visual na coluna `Conflitos`;
 - ação `Comparar` para revisar pares de regras;
 - geração do `Relatório de Colisões` em TXT;
-- geração do `Relatório da Unidade` em TXT (com mini-help, maturidade e estrutura de automação).
+- geração do `Relatório da Unidade` em TXT (com mini-help, maturidade da estrutura ATP, limites de observabilidade e estrutura de automação).
 
 Recursos antigos de fluxo/BPMN/extrato não fazem parte desta versão.
 
@@ -24,10 +24,25 @@ O `Relatório da Unidade` oferece uma visão gerencial da ATP da unidade analisa
 
 Principais pontos:
 
-- estágio de maturidade da automação;
+- estágio de maturidade da estrutura ATP observável;
 - recomendações práticas para evolução;
 - leitura da estrutura de automação (ações e distribuição operacional);
 - resumo de conflitos por severidade.
+
+## Escopo da maturidade e do fluxo
+
+A maturidade apresentada pelo `Relatório da Unidade` é estimada a partir das regras ATP disponíveis, considerando diversidade de localizadores, ações e utilização das automações. Ela descreve o desenvolvimento da estrutura ATP observável, não a operação completa da unidade.
+
+O indicador não analisa preferências utilizadas por servidores e magistrados nem confirma o encadeamento completo do fluxo operacional. Uma preferência pode conectar trechos que aparecem separados quando são observadas somente as regras ATP.
+
+Por esse motivo:
+
+- localizador apenas no `REMOVER` é apresentado como entrada sem origem ATP observada;
+- localizador apenas no `INCLUIR` é apresentado como destino sem continuidade ATP observada, preservadas as subclasses provável Gabinete, provável Cumprimento e provável Fixo;
+- concomitância indica que uma ou mais regras levam ao localizador pelo `INCLUIR` e uma ou mais regras partem dele pelo `REMOVER`; isso caracteriza continuidade estrutural observada e demonstra fluxo ATP através desse ponto;
+- a continuidade por concomitância é diretamente observável na camada ATP; nos demais pontos, a ausência de conexão ATP observada não deve ser interpretada automaticamente como falha, encerramento ou fragmentação do fluxo, pois a ligação pode ocorrer por preferência.
+
+A maturidade da estrutura ATP e a saúde da configuração são apresentadas separadamente. A primeira descreve o desenvolvimento da camada ATP; a segunda resume colisões e inconsistências detectadas.
 
 ## Relatório de Colisões
 
