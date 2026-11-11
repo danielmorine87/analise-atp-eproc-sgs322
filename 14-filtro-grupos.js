@@ -19,6 +19,10 @@ try { console.log('[ATP][LOAD] 14-filtro-grupos.js carregado com sucesso'); } ca
   let tableObserver = null;
   let observedTable = null;
   let pendingTimer = null;
+  let dtInstanceTable = null;
+  let dtSearchFn = null;
+  let dtDrawHooked = false;
+  let lastFilterSignature = null;
 
   function parseGroupId(value) {
     const match = String(value || '').trim().match(/^(\d+)\|/);
@@ -112,23 +116,76 @@ try { console.log('[ATP][LOAD] 14-filtro-grupos.js carregado com sucesso'); } ca
     if (!table) return;
 
     const rows = getRuleRows(table);
-    let visibleCount = 0;
+    const usingDataTables = applyDataTablesGroupFilter(table);
+
+    let matchedCount = 0;
     let unknownCount = 0;
 
     rows.forEach((row) => {
       const groupId = getRuleGroupId(row);
       const hiddenByGroup = !selectedGroups.has(groupId);
-      row.classList.toggle('atp-group-filter-hidden', hiddenByGroup);
+      if (usingDataTables) {
+        row.classList.remove('atp-group-filter-hidden');
+      } else {
+        row.classList.toggle('atp-group-filter-hidden', hiddenByGroup);
+      }
       if (!groupId) unknownCount++;
-      if (!hiddenByGroup && row.style.display !== 'none' && !row.hidden) visibleCount++;
+      if (!hiddenByGroup) matchedCount++;
     });
 
     if (status) {
       status.textContent = selectedGroups.size
-        ? `Exibindo ${visibleCount} de ${rows.length} regras${unknownCount ? ` · ${unknownCount} sem grupo identificado` : ''}`
+        ? `Exibindo ${matchedCount} de ${rows.length} regras${unknownCount ? ` · ${unknownCount} sem grupo identificado` : ''}`
         : `${rows.length} regras disponíveis · selecione grupos para exibir`;
     }
     updateButton();
+  }
+
+  // Quando a tabela e um DataTables, a visibilidade precisa ser resolvida pela
+  // propria API: so esconder por CSS nao recalcula a paginacao (um grupo pequeno
+  // continuaria espalhado por varias paginas vazias).
+  function applyDataTablesGroupFilter(table) {
+    const jq = window.jQuery;
+    if (!jq || !jq.fn || !jq.fn.dataTable || !jq.fn.dataTable.ext || !Array.isArray(jq.fn.dataTable.ext.search)) {
+      return false;
+    }
+
+    let api;
+    try { api = jq(table).DataTable(); } catch (_) { return false; }
+    if (!api || typeof api.draw !== 'function') return false;
+
+    if (dtInstanceTable !== table) {
+      try {
+        if (dtSearchFn) {
+          jq.fn.dataTable.ext.search = jq.fn.dataTable.ext.search.filter((fn) => fn !== dtSearchFn);
+        }
+      } catch (_) {}
+      dtInstanceTable = table;
+      dtDrawHooked = false;
+      dtSearchFn = function (settings, data, dataIndex) {
+        if (!selectedGroups.size) return false;
+        const rowData = settings && settings.aoData ? settings.aoData[dataIndex] : null;
+        const tr = rowData ? rowData.nTr : null;
+        if (!tr) return false;
+        return selectedGroups.has(getRuleGroupId(tr));
+      };
+      jq.fn.dataTable.ext.search.push(dtSearchFn);
+    }
+
+    if (!dtDrawHooked && typeof api.on === 'function') {
+      api.on('draw', () => {
+        try { if (typeof applyFilter === 'function') applyFilter(table); } catch (_) {}
+      });
+      dtDrawHooked = true;
+    }
+
+    const signature = table.id + '::' + Array.from(selectedGroups).sort().join(',');
+    if (signature !== lastFilterSignature) {
+      lastFilterSignature = signature;
+      try { api.draw(false); } catch (_) { return false; }
+    }
+
+    return true;
   }
 
   function updateButton() {
